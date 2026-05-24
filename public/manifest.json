@@ -1,0 +1,23 @@
+{
+  "name": "STŘELNICE KARLÍN – Rezervace",
+  "short_name": "Střelnice Karlín",
+  "description": "Online rezervace hodin na střelnici",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#030504",
+  "theme_color": "#070907",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity", "sports"],
+  "icons": [
+    { "src": "/favicon-16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

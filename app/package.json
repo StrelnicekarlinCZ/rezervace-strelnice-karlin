@@ -1,0 +1,30 @@
+{
+  "name": "rezervace-combat-power-pwa",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@prisma/client": "latest",
+    "lucide-react": "latest",
+    "next": "latest",
+    "nodemailer": "^6.10.1",
+    "qrcode": "^1.5.4",
+    "qrcode.react": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "latest",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "prisma": "6.19.0",
+    "tailwindcss": "latest",
+    "typescript": "latest"
+  }
+}

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
 
 export const runtime = 'nodejs';
 
@@ -185,7 +186,6 @@ export async function POST(request: Request) {
     console.log('EMAIL_DEMO_READY', { to, subject, reservationId: reservation?.id, checkUrl });
     return NextResponse.json({ ok: true, mode: 'demo', message: 'E-mail je připravený. Pro reálné odeslání nastavte SMTP v .env.local.' });
   }
-import nodemailer from 'nodemailer';
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const transporter = nodemailer.createTransport({

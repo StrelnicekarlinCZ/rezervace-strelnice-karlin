@@ -21,13 +21,35 @@ async function writeAppData(value: any) {
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    const token = url.searchParams.get('token');
+
+    if (token !== process.env.APP_DATA_TOKEN) {
+      return NextResponse.json(
+        { ok: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const data = await readAppData();
-    return NextResponse.json({ ok: true, mode: dbEnabled() ? 'postgresql' : 'local', data });
+    return NextResponse.json({
+      ok: true,
+      mode: dbEnabled() ? 'postgresql' : 'local',
+      data
+    });
   } catch (error: any) {
     console.error('APP_DATA_GET_ERROR', error);
-    return NextResponse.json({ ok: false, mode: 'error', message: error?.message || 'DB load failed', data: null }, { status: 500 });
+    return NextResponse.json(
+      {
+        ok: false,
+        mode: 'error',
+        message: error?.message || 'DB load failed',
+        data: null
+      },
+      { status: 500 }
+    );
   }
 }
 

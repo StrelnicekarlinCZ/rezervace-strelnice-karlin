@@ -9,7 +9,7 @@
   "postinstall": "prisma generate"
 },
   "dependencies": {
-    "@prisma/client": "latest",
+    "@prisma/client": "6.19.0",
     "lucide-react": "latest",
     "next": "latest",
     "nodemailer": "^6.10.1",

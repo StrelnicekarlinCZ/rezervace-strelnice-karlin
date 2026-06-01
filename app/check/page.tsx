@@ -1,16 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Copy, Search, ShieldCheck, Clock3 } from 'lucide-react';
+import { CheckCircle2, Copy, Search, ShieldCheck, RefreshCw } from 'lucide-react';
 
 type ReservationStatus = 'confirmed' | 'cancelled' | 'no_show' | 'checked_in';
-
-type CheckInRecord = {
-  reservationId: string;
-  checkedInAt: string;
-  clientName: string;
-  serviceName: string;
-};
 
 type Reservation = {
   id: string;
@@ -47,30 +40,13 @@ function formatDateTime(iso?: string) {
 
 export default function CheckPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [history, setHistory] = useState<CheckInRecord[]>([]);
   const [settings, setSettings] = useState<Settings>({
     qrInfo: 'Obsluha ověří rezervaci a potvrdí příchod zákazníka.',
     address: 'Adresa střelnice'
   });
   const [manual, setManual] = useState('');
   const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    try {
-      setReservations(JSON.parse(localStorage.getItem('cp_reservations') || '[]'));
-    } catch {}
-
-    try {
-      setHistory(JSON.parse(localStorage.getItem('cp_checkin_history') || '[]'));
-    } catch {}
-
-    try {
-      setSettings(s => ({
-        ...s,
-        ...JSON.parse(localStorage.getItem('cp_settings') || '{}')
-      }));
-    } catch {}
-  }, []);
+  const [loading, setLoading] = useState(true);
 
   const queryId =
     typeof window !== 'undefined'
@@ -84,13 +60,43 @@ export default function CheckPage() {
     [reservations, id]
   );
 
+  async function loadReservations() {
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/reservations', {
+        cache: 'no-store'
+      });
+
+      const data = await res.json();
+
+      if (Array.isArray(data.reservations)) {
+        setReservations(data.reservations);
+      }
+
+      try {
+        const localSettings = JSON.parse(localStorage.getItem('cp_settings') || '{}');
+        setSettings(s => ({ ...s, ...localSettings }));
+      } catch {}
+    } catch (error) {
+      console.error('CHECK_LOAD_ERROR', error);
+      setMessage('Nepodařilo se načíst rezervace ze serveru.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadReservations();
+  }, []);
+
   function copy() {
     navigator.clipboard?.writeText(id);
     setMessage('Číslo rezervace zkopírováno.');
     setTimeout(() => setMessage(''), 1400);
   }
 
-  function checkIn() {
+  async function checkIn() {
     if (!reservation) return;
 
     if (reservation.status === 'checked_in') {
@@ -110,22 +116,24 @@ export default function CheckPage() {
         : r
     );
 
-    const record: CheckInRecord = {
-      reservationId: reservation.id,
-      checkedInAt,
-      clientName: reservation.name,
-      serviceName: reservation.serviceName
-    };
-
-    const nextHistory = [record, ...history];
-
     setReservations(nextReservations);
-    setHistory(nextHistory);
 
-    localStorage.setItem('cp_reservations', JSON.stringify(nextReservations));
-    localStorage.setItem('cp_checkin_history', JSON.stringify(nextHistory));
+    try {
+      await fetch('/api/app-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          reservations: nextReservations
+        })
+      });
 
-    setMessage('Příchod potvrzen. Rezervace je označená jako odbavená.');
+      setMessage('Příchod potvrzen. Rezervace je označená jako odbavená.');
+    } catch (error) {
+      console.error('CHECKIN_SAVE_ERROR', error);
+      setMessage('Příchod se nepodařilo uložit na server.');
+    }
   }
 
   return (
@@ -155,11 +163,17 @@ export default function CheckPage() {
           </div>
         </div>
 
-        {!reservation && (
+        {loading && (
+          <div className="notice">
+            <RefreshCw size={16} />
+            Načítám rezervaci ze serveru...
+          </div>
+        )}
+
+        {!loading && !reservation && (
           <div className="notice">
             <Search size={16} />
-            Rezervace zatím nebyla nalezena v tomto zařízení. V ostré verzi se
-            bude ověřovat centrálně ze serverové databáze.
+            Rezervace nebyla nalezena v centrální databázi.
           </div>
         )}
 
@@ -214,25 +228,6 @@ export default function CheckPage() {
                 ? 'Příchod už potvrzen'
                 : 'Potvrdit příchod'}
             </button>
-          </div>
-        )}
-
-        {history.length > 0 && (
-          <div className="check-history">
-            <h2>
-              <Clock3 size={18} />
-              Historie check-inů
-            </h2>
-
-            {history.slice(0, 5).map(item => (
-              <div className="history-row" key={`${item.reservationId}-${item.checkedInAt}`}>
-                <b>{item.clientName}</b>
-                <span>{item.serviceName}</span>
-                <small>
-                  {item.reservationId} · {formatDateTime(item.checkedInAt)}
-                </small>
-              </div>
-            ))}
           </div>
         )}
 

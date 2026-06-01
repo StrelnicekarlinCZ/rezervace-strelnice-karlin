@@ -119,7 +119,7 @@ export default function CheckPage() {
     setReservations(nextReservations);
 
     try {
-     const res = await fetch('/api/check-in', {
+     const res = await fetch('/api/checkin', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'

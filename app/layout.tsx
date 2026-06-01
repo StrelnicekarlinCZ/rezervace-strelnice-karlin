@@ -37,40 +37,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="cs">
       <head>
         <link
-  rel="manifest"
-  href={
-    typeof window !== 'undefined' && window.location.pathname.startsWith('/cp-system')
-      ? '/admin-manifest.json'
-      : '/user-manifest.json'
-  }
-/>
-
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function () {
-                if (location.pathname.startsWith('/cp-system')) {
-                  var manifest = document.querySelector('link[rel="manifest"]');
-                  if (manifest) {
-                    manifest.setAttribute('href', '/admin-manifest.json');
-                  }
-
-                  var appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
-                  if (!appleIcon) {
-                    appleIcon = document.createElement('link');
-                    appleIcon.setAttribute('rel', 'apple-touch-icon');
-                    document.head.appendChild(appleIcon);
-                  }
-
-                  appleIcon.setAttribute('href', '/admin-final-v2-apple-touch-icon.png');
-                  document.title = 'STŘELNICE KARLÍN ADMIN';
-                }
-              })();
-            `
-          }}
-        />
-
-        <link
           rel="apple-touch-startup-image"
           href="/splash-iphone.png"
           media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"

@@ -37,7 +37,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="cs">
       <head>
-        <link rel="manifest" href="/user-manifest.json" />
+        <link
+  rel="manifest"
+  href={
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/cp-system')
+      ? '/admin-manifest.json'
+      : '/user-manifest.json'
+  }
+/>
 
         <script
           dangerouslySetInnerHTML={{

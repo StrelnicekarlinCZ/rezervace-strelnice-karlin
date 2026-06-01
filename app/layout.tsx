@@ -4,7 +4,6 @@ import type { Metadata, Viewport } from 'next';
 export const metadata: Metadata = {
   title: 'STŘELNICE KARLÍN – Rezervace',
   description: 'Online rezervace hodin na střelnici',
-  manifest: '/user-manifest.json',
   applicationName: 'Střelnice Karlín',
   appleWebApp: {
     capable: true,

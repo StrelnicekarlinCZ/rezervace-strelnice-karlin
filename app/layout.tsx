@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
-                if (location.pathname.startsWith('/cp-admin')) {
+                if (location.pathname.startsWith('/cp-system')) {
                   var manifest = document.querySelector('link[rel="manifest"]');
                   if (manifest) {
                     manifest.setAttribute('href', '/admin-manifest.json');

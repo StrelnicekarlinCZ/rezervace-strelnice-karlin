@@ -4,7 +4,7 @@ import type { Metadata, Viewport } from 'next';
 export const metadata: Metadata = {
   title: 'STŘELNICE KARLÍN – Rezervace',
   description: 'Online rezervace hodin na střelnici',
-  manifest: '/manifest.json',
+  manifest: '/user-manifest.json',
   applicationName: 'Střelnice Karlín',
   appleWebApp: {
     capable: true,
@@ -37,31 +37,52 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="cs">
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/user-manifest.json" />
+
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if (location.pathname.startsWith('/cp-system')) {
-                var oldManifest = document.querySelector('link[rel="manifest"]');
-                if (oldManifest) oldManifest.setAttribute('href', '/admin-manifest.json');
+              (function () {
+                if (location.pathname.startsWith('/cp-admin')) {
+                  var manifest = document.querySelector('link[rel="manifest"]');
+                  if (manifest) {
+                    manifest.setAttribute('href', '/admin-manifest.json');
+                  }
 
-                var appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
-                if (!appleIcon) {
-                  appleIcon = document.createElement('link');
-                  appleIcon.setAttribute('rel', 'apple-touch-icon');
-                  document.head.appendChild(appleIcon);
+                  var appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+                  if (!appleIcon) {
+                    appleIcon = document.createElement('link');
+                    appleIcon.setAttribute('rel', 'apple-touch-icon');
+                    document.head.appendChild(appleIcon);
+                  }
+
+                  appleIcon.setAttribute('href', '/admin-final-v2-apple-touch-icon.png');
+                  document.title = 'STŘELNICE KARLÍN ADMIN';
                 }
-                appleIcon.setAttribute('href', '/admin-final-v2-apple-touch-icon.png');
-
-                document.title = 'STŘELNICE KARLÍN ADMIN';
-              }
+              })();
             `
           }}
         />
-        <link rel="apple-touch-startup-image" href="/splash-iphone.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
-        <link rel="apple-touch-startup-image" href="/splash-iphone-large.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
-        <link rel="apple-touch-startup-image" href="/splash-ipad.png" media="(min-device-width: 768px) and (max-device-width: 1024px) and (-webkit-min-device-pixel-ratio: 2)" />
+
+        <link
+          rel="apple-touch-startup-image"
+          href="/splash-iphone.png"
+          media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
+        />
+
+        <link
+          rel="apple-touch-startup-image"
+          href="/splash-iphone-large.png"
+          media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)"
+        />
+
+        <link
+          rel="apple-touch-startup-image"
+          href="/splash-ipad.png"
+          media="(min-device-width: 768px) and (max-device-width: 1024px) and (-webkit-min-device-pixel-ratio: 2)"
+        />
       </head>
+
       <body>{children}</body>
     </html>
   );

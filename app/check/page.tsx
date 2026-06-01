@@ -119,17 +119,29 @@ export default function CheckPage() {
     setReservations(nextReservations);
 
     try {
-      await fetch('/api/app-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          reservations: nextReservations
-        })
-      });
+     const res = await fetch('/api/check-in', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    id: reservation.id
+  })
+});
 
-      setMessage('Příchod potvrzen. Rezervace je označená jako odbavená.');
+const data = await res.json();
+
+if (!res.ok || !data.ok) {
+  throw new Error(data?.message || 'Check-in se nepodařil.');
+}
+
+setReservations(current =>
+  current.map(r =>
+    r.id === reservation.id ? data.reservation : r
+  )
+);
+
+setMessage('Příchod potvrzen. Rezervace je označená jako odbavená.');
     } catch (error) {
       console.error('CHECKIN_SAVE_ERROR', error);
       setMessage('Příchod se nepodařilo uložit na server.');

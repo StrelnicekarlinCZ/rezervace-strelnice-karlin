@@ -2,7 +2,7 @@
   "name": "Střelnice Karlín Admin",
   "short_name": "Admin",
   "description": "Administrace rezervací",
-  "start_url": "/cp-admin",
+  "start_url": "/cp-system",
   "scope": "/",
   "display": "standalone",
   "background_color": "#000000",

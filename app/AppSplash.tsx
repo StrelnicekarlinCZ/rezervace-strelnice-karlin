@@ -1,19 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 export default function AppSplash() {
-  const [show, setShow] = useState(true);
-  const [hide, setHide] = useState(false);
-
   useEffect(() => {
     const hideTimer = setTimeout(() => {
-      setHide(true);
+      const splash = document.getElementById('app-splash');
+      if (splash) {
+        splash.style.opacity = '0';
+      }
     }, 2500);
 
     const removeTimer = setTimeout(() => {
-      setShow(false);
-    }, 3000);
+      const splash = document.getElementById('app-splash');
+      if (splash) {
+        splash.remove();
+      }
+    }, 3100);
 
     return () => {
       clearTimeout(hideTimer);
@@ -21,23 +24,33 @@ export default function AppSplash() {
     };
   }, []);
 
-  if (!show) return null;
-
   return (
     <div
+      id="app-splash"
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 999999,
         backgroundColor: '#000',
-        backgroundImage: 'url("/splash-iphone.png")',
-        backgroundSize: 'cover',
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'center',
-        opacity: hide ? 0 : 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         pointerEvents: 'none',
-        transition: 'opacity 500ms ease'
+        opacity: 1,
+        transition: 'opacity 600ms ease'
       }}
-    />
+    >
+      <img
+        src="/splash-iphone.png"
+        alt="Střelnice Karlín"
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          objectPosition: 'center',
+          display: 'block'
+        }}
+      />
+    </div>
   );
 }

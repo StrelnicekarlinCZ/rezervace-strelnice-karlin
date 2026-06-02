@@ -39,14 +39,44 @@ function reservationStatusLabel(r: Reservation){
   return 'potvrzeno';
 }
 
+const ADMIN_IDLE_LIMIT_MS = 15 * 60 * 1000;
+const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
+const ADMIN_LOCK_MS = 10 * 60 * 1000;
+
+function getAdminLockUntil(){
+  if(typeof window === 'undefined') return 0;
+  return Number(localStorage.getItem('cp_admin_lock_until') || '0');
+}
+
+function getAdminAttempts(){
+  if(typeof window === 'undefined') return 0;
+  return Number(localStorage.getItem('cp_admin_attempts') || '0');
+}
+
+function clearAdminSecurityState(){
+  if(typeof window === 'undefined') return;
+  localStorage.removeItem('cp_admin_attempts');
+  localStorage.removeItem('cp_admin_lock_until');
+}
+
+function lockAdminLogin(){
+  if(typeof window === 'undefined') return;
+  localStorage.setItem('cp_admin_lock_until', String(Date.now() + ADMIN_LOCK_MS));
+}
+
+function formatRemainingLock(ms:number){
+  const minutes = Math.ceil(ms / 60000);
+  return `${minutes} min`;
+}
+
 export default function AdminPage(){
-  const [reservations,setReservations]=useState<Reservation[]>([]); const [filterDate,setFilterDate]=useState(new Date().toISOString().slice(0,10)); const [reservationFilter,setReservationFilter]=useState<'all'|'confirmed'|'checked_in'|'no_show'|'cancelled'>('all'); const [weekOffset,setWeekOffset]=useState(0); const [blocked,setBlocked]=useState<any[]>(['*|12:30']); const [newBlock,setNewBlock]=useState(''); const [blockDate,setBlockDate]=useState(new Date().toISOString().slice(0,10)); const [blockEnd,setBlockEnd]=useState(''); const [blockScope,setBlockScope]=useState<string[]>(['all']); const [categories,setCategories]=useState<Category[]>(defaultCategories); const [settings,setSettings]=useState<SettingsT>(defaultSettings); const [saved,setSaved]=useState(''); const [loginPassword,setLoginPassword]=useState(''); const [authed,setAuthed]=useState(false); const [loginError,setLoginError]=useState(''); const [imageNote,setImageNote]=useState('');
-  useEffect(()=>{try{setReservations(JSON.parse(localStorage.getItem('cp_reservations')||'[]'))}catch{} try{setBlocked(JSON.parse(localStorage.getItem('cp_blocked')||'["*|12:30"]'))}catch{} try{const c=JSON.parse(localStorage.getItem('cp_categories')||'null'); if(Array.isArray(c)&&c.length)setCategories(c); else { const old=JSON.parse(localStorage.getItem('cp_services')||'null'); if(Array.isArray(old)&&old.length)setCategories([{id:'sluzby',name:'Služby střelnice',description:'Převedeno ze starší verze.',icon:'target',image:'',services:old.map((s:any)=>({id:s.id,name:s.name,duration:s.duration,price:s.price,capacity:s.capacity,description:s.description||''}))}]); }}catch{} try{setSettings({...defaultSettings,...JSON.parse(localStorage.getItem('cp_settings')||'{}')})}catch{} fetch('/api/app-data').then(r=>r.json()).then(j=>{const d=j?.data; if(!d) return; if(Array.isArray(d.reservations)) setReservations(d.reservations); if(Array.isArray(d.blocked)) setBlocked(d.blocked); if(Array.isArray(d.categories)&&d.categories.length) setCategories(d.categories); if(d.settings) setSettings((cur:any)=>({...cur,...d.settings}));}).catch(()=>{}); fetch('/api/reservations').then(r=>r.json()).then(j=>{if(Array.isArray(j?.reservations)) setReservations(j.reservations);}).catch(()=>{}); setAuthed(sessionStorage.getItem('cp_admin_auth')==='1')},[]);
-  useEffect(()=>{localStorage.setItem('cp_reservations',JSON.stringify(reservations))},[reservations]); useEffect(()=>{localStorage.setItem('cp_blocked',JSON.stringify(blocked))},[blocked]);
+  const [reservations,setReservations]=useState<Reservation[]>([]); const [filterDate,setFilterDate]=useState(new Date().toISOString().slice(0,10)); const [reservationFilter,setReservationFilter]=useState<'all'|'confirmed'|'checked_in'|'no_show'|'cancelled'>('all'); const [weekOffset,setWeekOffset]=useState(0); const [blocked,setBlocked]=useState<any[]>(['*|12:30']); const [newBlock,setNewBlock]=useState(''); const [blockDate,setBlockDate]=useState(new Date().toISOString().slice(0,10)); const [blockEnd,setBlockEnd]=useState(''); const [blockScope,setBlockScope]=useState<string[]>(['all']); const [categories,setCategories]=useState<Category[]>(defaultCategories); const [settings,setSettings]=useState<SettingsT>(defaultSettings); const [saved,setSaved]=useState(''); const [loginPassword,setLoginPassword]=useState(''); const [authed,setAuthed]=useState(false); const [loginError,setLoginError]=useState(''); const [imageNote,setImageNote]=useState(''); const [lockUntil,setLockUntil]=useState(0); const [lastActivity,setLastActivity]=useState(Date.now());
+  useEffect(()=>{try{setReservations(JSON.parse(localStorage.getItem('cp_reservations')||'[]'))}catch{} try{setBlocked(JSON.parse(localStorage.getItem('cp_blocked')||'["*|12:30"]'))}catch{} try{const c=JSON.parse(localStorage.getItem('cp_categories')||'null'); if(Array.isArray(c)&&c.length)setCategories(c); else { const old=JSON.parse(localStorage.getItem('cp_services')||'null'); if(Array.isArray(old)&&old.length)setCategories([{id:'sluzby',name:'Služby střelnice',description:'Převedeno ze starší verze.',icon:'target',image:'',services:old.map((s:any)=>({id:s.id,name:s.name,duration:s.duration,price:s.price,capacity:s.capacity,description:s.description||''}))}]); }}catch{} try{setSettings({...defaultSettings,...JSON.parse(localStorage.getItem('cp_settings')||'{}')})}catch{} fetch('/api/app-data').then(r=>r.json()).then(j=>{const d=j?.data; if(!d) return; if(Array.isArray(d.reservations)) setReservations(d.reservations); if(Array.isArray(d.blocked)) setBlocked(d.blocked); if(Array.isArray(d.categories)&&d.categories.length) setCategories(d.categories); if(d.settings) setSettings((cur:any)=>({...cur,...d.settings}));}).catch(()=>{}); fetch('/api/reservations').then(r=>r.json()).then(j=>{if(Array.isArray(j?.reservations)) setReservations(j.reservations);}).catch(()=>{}); setAuthed(sessionStorage.getItem('cp_admin_auth')==='1'); setLockUntil(getAdminLockUntil()); const markActivity=()=>setLastActivity(Date.now()); window.addEventListener('mousemove',markActivity); window.addEventListener('keydown',markActivity); window.addEventListener('click',markActivity); window.addEventListener('touchstart',markActivity); return()=>{window.removeEventListener('mousemove',markActivity); window.removeEventListener('keydown',markActivity); window.removeEventListener('click',markActivity); window.removeEventListener('touchstart',markActivity);}},[]);
+  useEffect(()=>{localStorage.setItem('cp_reservations',JSON.stringify(reservations))},[reservations]); useEffect(()=>{localStorage.setItem('cp_blocked',JSON.stringify(blocked))},[blocked]); useEffect(()=>{if(!authed)return; const interval=setInterval(()=>{if(Date.now()-lastActivity>ADMIN_IDLE_LIMIT_MS){sessionStorage.removeItem('cp_admin_auth'); setAuthed(false); setLoginPassword(''); setLoginError('Byl jste automaticky odhlášen po nečinnosti.');}},30000); return()=>clearInterval(interval)},[authed,lastActivity]); useEffect(()=>{const interval=setInterval(()=>setLockUntil(getAdminLockUntil()),1000); return()=>clearInterval(interval)},[]);
   const dayReservations=useMemo(()=>reservations.filter(r=>r.date===filterDate),[reservations,filterDate]); const visibleDayReservations=useMemo(()=>reservationFilter==='all'?dayReservations:dayReservations.filter(r=>(r.status||'confirmed')===reservationFilter),[dayReservations,reservationFilter]); const dayConfirmed=dayReservations.filter(r=>(r.status||'confirmed')==='confirmed').length; const dayCheckedIn=dayReservations.filter(r=>r.status==='checked_in').length; const dayNoShow=dayReservations.filter(r=>r.status==='no_show').length; const dayCancelled=dayReservations.filter(r=>r.status==='cancelled').length; const todayIso=new Date().toISOString().slice(0,10); const pastReservations=useMemo(()=>reservations.filter(r=>r.date<todayIso),[reservations,todayIso]); const futureReservations=useMemo(()=>reservations.filter(r=>r.date>=todayIso),[reservations,todayIso]); const revenue=dayReservations.reduce((sum,r)=>sum+(categories.find(c=>c.id===r.categoryId)?.services.find(s=>s.id===r.serviceId)?.price||0),0);
   function toast(t:string){setSaved(t);setTimeout(()=>setSaved(''),1600)} async function saveAll(){try{localStorage.setItem('cp_categories',JSON.stringify(categories)); localStorage.setItem('cp_settings',JSON.stringify(settings)); await fetch('/api/app-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings,categories,reservations,blocked})}).catch(()=>null); toast('Uloženo')}catch(e){alert('Data jsou příliš velká pro lokální úložiště. Zmenšete obrázek nebo použijeme serverové ukládání souborů.')}}
   function resetAll(){if(!confirm('Vrátit výchozí data?'))return; setCategories(defaultCategories); setSettings(defaultSettings); localStorage.setItem('cp_categories',JSON.stringify(defaultCategories)); localStorage.setItem('cp_settings',JSON.stringify(defaultSettings)); toast('Obnoveno')}
-function login(){const pass=loginPassword.trim(); const adminPass=String(settings.adminPassword||'').trim(); if(adminPass && pass===adminPass){sessionStorage.setItem('cp_admin_auth','1');setAuthed(true);setLoginError('')}else setLoginError('Špatné heslo.')} function logout(){sessionStorage.removeItem('cp_admin_auth');setAuthed(false)}
+function login(){const now=Date.now(); const currentLock=getAdminLockUntil(); if(currentLock>now){setLockUntil(currentLock); setLoginError(`Přihlášení je dočasně zablokováno. Zkuste to za ${formatRemainingLock(currentLock-now)}.`); return;} const pass=loginPassword.trim(); const adminPass=String(settings.adminPassword||'').trim(); if(adminPass && pass===adminPass){sessionStorage.setItem('cp_admin_auth','1'); clearAdminSecurityState(); setLockUntil(0); setAuthed(true); setLoginError(''); setLastActivity(Date.now()); return;} const attempts=getAdminAttempts()+1; localStorage.setItem('cp_admin_attempts',String(attempts)); if(attempts>=ADMIN_MAX_LOGIN_ATTEMPTS){lockAdminLogin(); setLockUntil(getAdminLockUntil()); setLoginError('Příliš mnoho špatných pokusů. Přihlášení je zablokováno na 10 minut.'); return;} setLoginError(`Špatné heslo. Zbývá ${ADMIN_MAX_LOGIN_ATTEMPTS-attempts} pokusů.`)} function logout(){sessionStorage.removeItem('cp_admin_auth');setAuthed(false);setLoginPassword('');setLoginError('')}
   function toggleDay(d:number){setSettings(s=>({...s,openDays:s.openDays.includes(d)?s.openDays.filter(x=>x!==d):[...s.openDays,d].sort()}))} function toggleBlockScope(id:string){setBlockScope(s=>id==='all'?['all']:(s.includes(id)?s.filter(x=>x!==id):[...s.filter(x=>x!=='all'),id]))} function addBlock(){if(!/^\d{2}:\d{2}$/.test(newBlock))return alert('Čas od zadejte HH:MM'); const end=blockEnd&&/^\d{2}:\d{2}$/.test(blockEnd)?blockEnd:newBlock; const rule={id:uid('blok'),date:blockDate||filterDate,start:newBlock,end,scope:blockScope.length?blockScope:['all']}; setBlocked(b=>[...b,rule]);setNewBlock('');setBlockEnd('')}
   function exportJson(){const data={version:'v1.23-local-prototype',exportedAt:new Date().toISOString(),settings,categories,reservations,blocked}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='combat-power-rezervace-export.json'; a.click(); URL.revokeObjectURL(a.href)}
   function csvCell(v:any){return `"${String(v??'').replaceAll('"','""')}"`}
@@ -118,7 +148,7 @@ if(!authed)return <main className="admin-shell">
         />
       </div>
 
-      {loginError && <div className="error-box">{loginError}</div>}
+      {loginError && <div className="error-box">{loginError}</div>}{lockUntil>Date.now() && <div className="notice">Přihlášení je chráněné. Zbývá blokace: {formatRemainingLock(lockUntil-Date.now())}.</div>}
 
       <button
         type="button"
@@ -148,7 +178,7 @@ if(!authed)return <main className="admin-shell">
 
     <button className="small-btn" onClick={logout}>
       Odhlásit
-    </button>
+    </button><span className="small-btn" style={{pointerEvents:'none',opacity:.8}}>Auto odhlášení: 15 min</span>
   </div>
 </header>
   <div className="stats stats-four"><div className="stat"><p>Rezervací ve dni</p><strong>{dayReservations.length}</strong></div><div className="stat"><p>Odbaveno ve dni</p><strong>{dayCheckedIn}</strong></div><div className="stat"><p>Čeká</p><strong>{dayConfirmed}</strong></div><div className="stat"><p>Nedorazil / storno</p><strong>{dayNoShow + dayCancelled}</strong></div></div>

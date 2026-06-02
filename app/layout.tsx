@@ -1,3 +1,4 @@
+import AppSplash from './AppSplash';
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 
@@ -55,7 +56,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
 
-      <body>{children}</body>
+      <body>
+  <AppSplash />
+  {children}
+</body>
     </html>
   );
 }

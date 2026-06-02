@@ -6,7 +6,7 @@ export default function AppSplash() {
   const [show, setShow] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShow(false), 1600);
+    const timer = setTimeout(() => setShow(false), 2500);
     return () => clearTimeout(timer);
   }, []);
 

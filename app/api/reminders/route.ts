@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import QRCode from 'qrcode';
 import { dbEnabled, prisma } from '../../../lib/prisma';
 
 export const runtime = 'nodejs';
@@ -55,9 +56,7 @@ async function writeAppData(value: any) {
 
 async function qrDataUrl(value: string) {
   try {
-    const QRCode = eval('require')('qrcode');
-
-    const result = await QRCode.toDataURL(value, {
+    return await QRCode.toDataURL(value, {
       width: 240,
       margin: 1,
       color: {
@@ -65,10 +64,6 @@ async function qrDataUrl(value: string) {
         light: '#ffffff',
       },
     });
-
-    console.log('QR_OK', result.substring(0, 50));
-
-    return result;
   } catch (error) {
     console.error('QR_ERROR', error);
     return '';

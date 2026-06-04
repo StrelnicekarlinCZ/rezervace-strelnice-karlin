@@ -21,7 +21,10 @@ function esc(value: unknown) {
 
 function tomorrowDatePrague() {
   const now = new Date();
-  const pragueNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Prague' }));
+  const pragueNow = new Date(
+    now.toLocaleString('en-US', { timeZone: 'Europe/Prague' })
+  );
+
   pragueNow.setDate(pragueNow.getDate() + 1);
 
   const y = pragueNow.getFullYear();
@@ -33,14 +36,17 @@ function tomorrowDatePrague() {
 
 async function readAppData(): Promise<any> {
   if (!dbEnabled()) return null;
+
   const row = await prisma.appSetting.findUnique({
     where: { key: APP_DATA_KEY },
   });
+
   return row?.value ?? null;
 }
 
 async function writeAppData(value: any) {
   if (!dbEnabled()) return null;
+
   return prisma.appSetting.upsert({
     where: { key: APP_DATA_KEY },
     create: { key: APP_DATA_KEY, value },
@@ -51,13 +57,18 @@ async function writeAppData(value: any) {
 function smtpConfig(settings: AnyRecord) {
   const host = process.env.SMTP_HOST || settings?.smtpHost || '';
   const port = Number(process.env.SMTP_PORT || settings?.smtpPort || 587);
+
   const secure = process.env.SMTP_SECURE
     ? process.env.SMTP_SECURE === 'true'
     : settings?.smtpSecure === true || port === 465;
 
   const user = process.env.SMTP_USER || settings?.smtpUser || '';
   const pass = process.env.SMTP_PASS || settings?.smtpPass || '';
-  const from = process.env.SMTP_FROM || settings?.smtpFrom || settings?.notificationEmail || user;
+  const from =
+    process.env.SMTP_FROM ||
+    settings?.smtpFrom ||
+    settings?.notificationEmail ||
+    user;
 
   return {
     host,
@@ -76,10 +87,16 @@ function absoluteCheckUrl(settings: AnyRecord, reservation: AnyRecord) {
     settings?.rangeUrl ||
     'https://rezervace-strelnice-karlin.vercel.app';
 
-  return `${String(base).replace(/\/$/, '')}/check?id=${encodeURIComponent(reservation?.id || '')}`;
+  return `${String(base).replace(/\/$/, '')}/check?id=${encodeURIComponent(
+    reservation?.id || ''
+  )}`;
 }
 
-function reminderText(reservation: AnyRecord, settings: AnyRecord, checkUrl: string) {
+function reminderText(
+  reservation: AnyRecord,
+  settings: AnyRecord,
+  checkUrl: string
+) {
   return `Dobrý den,
 
 připomínáme Vaši rezervaci na zítřejší den.
@@ -98,7 +115,11 @@ Těšíme se na Vás.
 Tým Střelnice Karlín`;
 }
 
-function reminderHtml(reservation: AnyRecord, settings: AnyRecord, checkUrl: string) {
+function reminderHtml(
+  reservation: AnyRecord,
+  settings: AnyRecord,
+  checkUrl: string
+) {
   return `<!doctype html>
 <html>
 <head>
@@ -127,12 +148,30 @@ function reminderHtml(reservation: AnyRecord, settings: AnyRecord, checkUrl: str
         </p>
 
         <table role="presentation" style="width:100%;border-collapse:collapse;color:#fff">
-          <tr><td style="padding:8px 0;color:#9cff38;font-weight:700;width:140px">Služba:</td><td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.categoryName)}</td></tr>
-          <tr><td style="padding:8px 0;color:#9cff38;font-weight:700">Podslužba:</td><td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.serviceName)}</td></tr>
-          <tr><td style="padding:8px 0;color:#9cff38;font-weight:700">Datum:</td><td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.date)}</td></tr>
-          <tr><td style="padding:8px 0;color:#9cff38;font-weight:700">Čas:</td><td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.time)}${reservation?.endTime ? ` – ${esc(reservation.endTime)}` : ''}</td></tr>
-          <tr><td style="padding:8px 0;color:#9cff38;font-weight:700">Jméno:</td><td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.name)}</td></tr>
-          <tr><td style="padding:8px 0;color:#9cff38;font-weight:700">Adresa:</td><td style="padding:8px 0;color:#fff;font-weight:700">${esc(settings?.address || 'Střelnice Karlín')}</td></tr>
+          <tr>
+            <td style="padding:8px 0;color:#9cff38;font-weight:700;width:140px">Služba:</td>
+            <td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.categoryName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#9cff38;font-weight:700">Podslužba:</td>
+            <td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.serviceName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#9cff38;font-weight:700">Datum:</td>
+            <td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.date)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#9cff38;font-weight:700">Čas:</td>
+            <td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.time)}${reservation?.endTime ? ` – ${esc(reservation.endTime)}` : ''}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#9cff38;font-weight:700">Jméno:</td>
+            <td style="padding:8px 0;color:#fff;font-weight:700">${esc(reservation?.name)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#9cff38;font-weight:700">Adresa:</td>
+            <td style="padding:8px 0;color:#fff;font-weight:700">${esc(settings?.address || 'Střelnice Karlín')}</td>
+          </tr>
         </table>
 
         <div style="height:1px;background:rgba(255,255,255,.18);margin:22px 0"></div>
@@ -156,13 +195,13 @@ async function sendReminder(reservation: AnyRecord, settings: AnyRecord) {
   const to = String(reservation?.email || '').trim();
 
   if (!to || !to.includes('@')) {
-    return { ok: false, skipped: true, reason: 'missing_email' };
+    return { ok: false, reason: 'missing_email' };
   }
 
   const cfg = smtpConfig(settings);
 
   if (!cfg.ready) {
-    return { ok: false, skipped: true, reason: 'smtp_not_ready' };
+    return { ok: false, reason: 'smtp_not_ready' };
   }
 
   const checkUrl = absoluteCheckUrl(settings, reservation);
@@ -175,9 +214,10 @@ async function sendReminder(reservation: AnyRecord, settings: AnyRecord) {
       user: cfg.user,
       pass: cfg.pass,
     },
-    tls: process.env.SMTP_TLS_REJECT_UNAUTHORIZED === 'false'
-      ? { rejectUnauthorized: false }
-      : undefined,
+    tls:
+      process.env.SMTP_TLS_REJECT_UNAUTHORIZED === 'false'
+        ? { rejectUnauthorized: false }
+        : undefined,
   });
 
   await transporter.sendMail({
@@ -188,7 +228,7 @@ async function sendReminder(reservation: AnyRecord, settings: AnyRecord) {
     html: reminderHtml(reservation, settings, checkUrl),
   });
 
-  return { ok: true };
+  return { ok: true, reason: '' };
 }
 
 function isAuthorized(request: Request) {
@@ -223,14 +263,17 @@ export async function GET(request: Request) {
     }
 
     const settings = data?.settings || {};
-    const reservations = Array.isArray(data?.reservations) ? data.reservations : [];
+    const reservations = Array.isArray(data?.reservations)
+      ? data.reservations
+      : [];
+
     const tomorrow = tomorrowDatePrague();
 
     let sent = 0;
     let skipped = 0;
-    const errors: any[] = [];
+    const errors: AnyRecord[] = [];
 
-    const updatedReservations = [];
+    const updatedReservations: AnyRecord[] = [];
 
     for (const reservation of reservations) {
       const alreadySent = !!reservation?.reminderSentAt;
@@ -246,20 +289,26 @@ export async function GET(request: Request) {
       try {
         const result = await sendReminder(reservation, settings);
 
-       if (result.ok) {
-  sent++;
-  updatedReservations.push({
-    ...reservation,
-    reminderSentAt: new Date().toISOString(),
-  });
-} else {
-  skipped++;
-  errors.push({
-    reservationId: reservation?.id || null,
-    reason: result.reason || 'unknown_skip',
-  });
-  updatedReservations.push(reservation);
-}
+        if (result.ok) {
+          sent++;
+          updatedReservations.push({
+            ...reservation,
+            reminderSentAt: new Date().toISOString(),
+          });
+        } else {
+          skipped++;
+          errors.push({
+            reservationId: reservation?.id || null,
+            reason: result.reason || 'unknown_skip',
+          });
+          updatedReservations.push(reservation);
+        }
+      } catch (error: any) {
+        skipped++;
+        errors.push({
+          reservationId: reservation?.id || null,
+          message: error?.message || 'Unknown error',
+        });
         updatedReservations.push(reservation);
       }
     }
@@ -273,22 +322,23 @@ export async function GET(request: Request) {
     await writeAppData(nextData);
 
     return NextResponse.json({
-  ok: true,
-  date: tomorrow,
-  sent,
-  skipped,
-  errors,
-  debugReservations: reservations.map((r: any) => ({
-    id: r?.id,
-    date: r?.date,
-    time: r?.time,
-    email: r?.email,
-    status: r?.status,
-    reminderSentAt: r?.reminderSentAt || null,
-  })),
-});
+      ok: true,
+      date: tomorrow,
+      sent,
+      skipped,
+      errors,
+      debugReservations: reservations.map((r: any) => ({
+        id: r?.id,
+        date: r?.date,
+        time: r?.time,
+        email: r?.email,
+        status: r?.status,
+        reminderSentAt: r?.reminderSentAt || null,
+      })),
+    });
   } catch (error: any) {
     console.error('REMINDERS_CRON_ERROR', error);
+
     return NextResponse.json(
       { ok: false, message: error?.message || 'Reminder cron failed.' },
       { status: 500 }

@@ -169,12 +169,9 @@ function smtpConfig(settings: AnyRecord) {
 }
 
 function absoluteCheckUrl(settings: AnyRecord, reservation: AnyRecord) {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    settings?.rangeUrl ||
-    'https://rezervace-strelnice-karlin.vercel.app';
+  const base = 'https://rezervace-strelnice-karlin.vercel.app';
 
-  return `${String(base).replace(/\/$/, '')}/check?id=${encodeURIComponent(reservation?.id || '')}`;
+  return `${base}/check?id=${encodeURIComponent(reservation?.id || '')}`;
 }
 
 function reminderText(reservation: AnyRecord, settings: AnyRecord, checkUrl: string) {

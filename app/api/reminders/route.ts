@@ -327,13 +327,6 @@ export async function GET(request: Request) {
       sent,
       skipped,
       errors,
-      smtpDebug: {
-  smtpHost: !!settings?.smtpHost,
-  smtpUser: !!settings?.smtpUser,
-  smtpPass: !!settings?.smtpPass,
-  smtpFrom: !!settings?.smtpFrom,
-  notificationEmail: !!settings?.notificationEmail,
-},
       debugReservations: reservations.map((r: any) => ({
         id: r?.id,
         date: r?.date,

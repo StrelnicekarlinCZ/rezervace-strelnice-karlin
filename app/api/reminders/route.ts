@@ -252,7 +252,7 @@ async function reminderHtml(reservation: AnyRecord, settings: AnyRecord, checkUr
 
         <div style="height:1px;background:rgba(255,255,255,.18);margin:22px 0"></div>
 
-        <div style="display:flex;gap:18px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">
+        <div style="display:flex;gap:18px;align-items:center;justify-content:flex-start;flex-wrap:wrap">
           <div style="color:#dfe8d9;line-height:1.6">
             <strong style="color:#9cff38">Kontakt</strong><br>
             ${esc(settings?.contactPhone || '+420 777 000 000')}<br>
@@ -260,7 +260,7 @@ async function reminderHtml(reservation: AnyRecord, settings: AnyRecord, checkUr
             ${esc(settings?.address || 'Střelnice Karlín')}
           </div>
 
-          <a href="${esc(checkUrl)}" style="display:inline-block;text-align:center;text-decoration:none;border:1px solid #9cff38;color:#9cff38;font-weight:900;padding:14px 18px;border-radius:12px;min-width:180px">
+          <a href="${esc(checkUrl)}" style="display:inline-block;text-align:center;text-decoration:none;border:1px solid #9cff38;color:#9cff38;font-weight:900;padding:12px 16px;border-radius:12px;min-width:180px;margin-left:auto">
             Zobrazit rezervaci online
           </a>
         </div>

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/reminders?secret=strelnice-karlin-cron-2026-secure-v1",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

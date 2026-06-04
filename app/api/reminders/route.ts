@@ -275,12 +275,20 @@ export async function GET(request: Request) {
     await writeAppData(nextData);
 
     return NextResponse.json({
-      ok: true,
-      date: tomorrow,
-      sent,
-      skipped,
-      errors,
-    });
+  ok: true,
+  date: tomorrow,
+  sent,
+  skipped,
+  errors,
+  debugReservations: reservations.map((r: any) => ({
+    id: r?.id,
+    date: r?.date,
+    time: r?.time,
+    email: r?.email,
+    status: r?.status,
+    reminderSentAt: r?.reminderSentAt || null,
+  })),
+});
   } catch (error: any) {
     console.error('REMINDERS_CRON_ERROR', error);
     return NextResponse.json(

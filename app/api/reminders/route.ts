@@ -55,13 +55,20 @@ async function writeAppData(value: any) {
 
 async function qrDataUrl(value: string) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const QRCode = eval('require')('qrcode');
-    return await QRCode.toDataURL(value, {
+
+    const result = await QRCode.toDataURL(value, {
       width: 240,
       margin: 1,
-      color: { dark: '#111111', light: '#ffffff' },
+      color: {
+        dark: '#111111',
+        light: '#ffffff',
+      },
     });
+
+    console.log('QR_OK', result.substring(0, 50));
+
+    return result;
   } catch (error) {
     console.error('QR_ERROR', error);
     return '';

@@ -246,7 +246,7 @@ async function reminderHtml(reservation: AnyRecord, settings: AnyRecord, checkUr
           ${
             qr
               ? `<div style="text-align:center">
-                  <img src="${qr}" width="176" height="176" alt="QR kód rezervace" style="background:#fff;border-radius:10px;padding:8px;display:block"/>
+                  <img src="cid:reservation-qr" width="176" height="176" alt="QR kód rezervace" style="background:#fff;border-radius:10px;padding:8px;display:block"/>
                   <div style="font-size:12px;color:#aebaa8;margin-top:8px">QR kód rezervace</div>
                 </div>`
               : ''
@@ -295,7 +295,8 @@ async function sendReminder(reservation: AnyRecord, settings: AnyRecord) {
   }
 
   const checkUrl = absoluteCheckUrl(settings, reservation);
-
+const qrData = await qrDataUrl(checkUrl);
+const qrBase64 = qrData.replace(/^data:image\/png;base64,/, '');
   const transporter = nodemailer.createTransport({
     host: cfg.host,
     port: cfg.port,
@@ -308,15 +309,21 @@ async function sendReminder(reservation: AnyRecord, settings: AnyRecord) {
   });
 
   const attachments =
-    settings?.emailAttachCard === false
-      ? []
-      : [
-          {
-            filename: `Pripominka_rezervace_${cleanFilePart(reservation?.id || 'SK')}.pdf`,
-            content: simplePdfCard(reservation, settings, checkUrl),
-            contentType: 'application/pdf',
-          },
-        ];
+  settings?.emailAttachCard === false
+    ? []
+    : [
+        {
+          filename: `Pripominka_rezervace_${cleanFilePart(reservation?.id || 'SK')}.pdf`,
+          content: simplePdfCard(reservation, settings, checkUrl),
+          contentType: 'application/pdf',
+        },
+        {
+          filename: `QR_${cleanFilePart(reservation?.id || 'SK')}.png`,
+          content: Buffer.from(qrBase64, 'base64'),
+          contentType: 'image/png',
+          cid: 'reservation-qr',
+        },
+      ];
 
   await transporter.sendMail({
     from: cfg.from,

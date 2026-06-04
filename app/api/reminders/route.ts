@@ -246,22 +246,20 @@ export async function GET(request: Request) {
       try {
         const result = await sendReminder(reservation, settings);
 
-        if (result.ok) {
-          sent++;
-          updatedReservations.push({
-            ...reservation,
-            reminderSentAt: new Date().toISOString(),
-          });
-        } else {
-          skipped++;
-          updatedReservations.push(reservation);
-        }
-      } catch (error: any) {
-        skipped++;
-        errors.push({
-          reservationId: reservation?.id || null,
-          message: error?.message || 'Unknown error',
-        });
+       if (result.ok) {
+  sent++;
+  updatedReservations.push({
+    ...reservation,
+    reminderSentAt: new Date().toISOString(),
+  });
+} else {
+  skipped++;
+  errors.push({
+    reservationId: reservation?.id || null,
+    reason: result.reason || 'unknown_skip',
+  });
+  updatedReservations.push(reservation);
+}
         updatedReservations.push(reservation);
       }
     }

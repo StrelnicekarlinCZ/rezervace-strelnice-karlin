@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import QRCode from 'qrcode';
 import { dbEnabled, prisma } from '../../../lib/prisma';
 
 export const runtime = 'nodejs';

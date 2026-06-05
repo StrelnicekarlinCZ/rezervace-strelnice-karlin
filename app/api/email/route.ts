@@ -177,7 +177,7 @@ async function reservationHtml(reservation: AnyRecord, settings: AnyRecord, chec
           ${
             qr
               ? `<div style="text-align:center">
-                  <img src="${qr}" width="176" height="176" alt="QR kód rezervace" style="background:#fff;border-radius:10px;padding:8px;display:block"/>
+                  <img src="cid:reservation-qr" width="176" height="176" alt="QR kód rezervace" style="background:#fff;border-radius:10px;padding:8px;display:block"/>
                   <div style="font-size:12px;color:#aebaa8;margin-top:8px">QR kód rezervace</div>
                 </div>`
               : ''
@@ -328,6 +328,8 @@ export async function POST(request: Request) {
     const html = await reservationHtml(reservation, settings, checkUrl);
     const text = reservationText(reservation, settings, checkUrl);
     const cfg = smtpConfig(settings);
+    const qrData = await qrDataUrl(checkUrl);
+const qrBase64 = qrData.replace(/^data:image\/png;base64,/, '');
 
     if (!cfg.ready) {
       console.log('EMAIL_DEMO_READY', {
@@ -344,16 +346,29 @@ export async function POST(request: Request) {
       });
     }
 
-    const attachments =
-      settings?.emailAttachCard === false
-        ? []
-        : [
-            {
-              filename: `Rezervace_${cleanFilePart(reservation?.id || 'SK')}.pdf`,
-              content: simplePdfCard(reservation, settings, checkUrl),
-              contentType: 'application/pdf',
-            },
-          ];
+   const attachments =
+  settings?.emailAttachCard === false
+    ? [
+        {
+          filename: `QR_${cleanFilePart(reservation?.id || 'SK')}.png`,
+          content: Buffer.from(qrBase64, 'base64'),
+          contentType: 'image/png',
+          cid: 'reservation-qr',
+        },
+      ]
+    : [
+        {
+          filename: `Rezervace_${cleanFilePart(reservation?.id || 'SK')}.pdf`,
+          content: simplePdfCard(reservation, settings, checkUrl),
+          contentType: 'application/pdf',
+        },
+        {
+          filename: `QR_${cleanFilePart(reservation?.id || 'SK')}.png`,
+          content: Buffer.from(qrBase64, 'base64'),
+          contentType: 'image/png',
+          cid: 'reservation-qr',
+        },
+      ];
 
     await nodemailer.createTransport({
       host: cfg.host,

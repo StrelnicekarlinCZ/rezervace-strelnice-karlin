@@ -186,7 +186,9 @@ async function reservationHtml(reservation: AnyRecord, settings: AnyRecord, chec
 
         <div style="height:1px;background:rgba(255,255,255,.18);margin:22px 0"></div>
 
-        <div style="display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td valign="top">
           <div style="color:#dfe8d9;line-height:1.6">
             <strong style="color:#9cff38">Kontakt</strong><br>
             ${esc(settings?.contactPhone || '+420 777 000 000')}<br>
@@ -197,6 +199,9 @@ async function reservationHtml(reservation: AnyRecord, settings: AnyRecord, chec
           <a href="${esc(checkUrl)}" style="display:inline-block;text-align:center;text-decoration:none;border:1px solid #9cff38;color:#9cff38;font-weight:900;padding:14px 18px;border-radius:12px;min-width:210px">
             Zobrazit rezervaci online
           </a>
+          </td>
+</tr>
+</table>
         </div>
 
         <div style="height:1px;background:rgba(255,255,255,.18);margin:22px 0"></div>

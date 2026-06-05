@@ -196,7 +196,7 @@ async function reservationHtml(reservation: AnyRecord, settings: AnyRecord, chec
             ${esc(settings?.address || 'Střelnice Karlín')}
           </div>
 
-         <a href="${esc(checkUrl)}" style="display:inline-block;text-align:center;text-decoration:none;border:1px solid #9cff38;color:#9cff38;font-weight:900;padding:14px 18px;border-radius:12px;min-width:210px;margin:0 auto">
+         <a href="${esc(checkUrl)}" style="display:inline-block;text-align:center;text-decoration:none;border:1px solid #9cff38;color:#9cff38;font-weight:900;padding:14px 18px;border-radius:12px;min-width:210px">
             Zobrazit rezervaci online
           </a>
           </td>

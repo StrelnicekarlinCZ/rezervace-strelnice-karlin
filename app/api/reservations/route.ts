@@ -62,3 +62,49 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: error?.message || 'Reservation save failed' }, { status: 500 });
   }
 }
+export async function DELETE(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { ok: false, message: 'Missing reservation id.' },
+        { status: 400 }
+      );
+    }
+
+    const data = (await readAppData()) ?? {
+      version: '1.27',
+      settings: {},
+      categories: [],
+      reservations: [],
+      blocked: [],
+    };
+
+    const reservations = Array.isArray(data.reservations) ? data.reservations : [];
+    const nextReservations = reservations.filter((r: any) => r?.id !== id);
+
+    const next = {
+      ...data,
+      version: '1.27',
+      updatedAt: new Date().toISOString(),
+      reservations: nextReservations,
+    };
+
+    await writeAppData(next);
+
+    return NextResponse.json({
+      ok: true,
+      deletedId: id,
+      remaining: nextReservations.length,
+    });
+  } catch (error: any) {
+    console.error('RESERVATIONS_DELETE_ERROR', error);
+
+    return NextResponse.json(
+      { ok: false, message: error?.message || 'Reservation delete failed' },
+      { status: 500 }
+    );
+  }
+}

@@ -282,16 +282,21 @@ export default function HomePage(){
   }catch{} try{const p=JSON.parse(localStorage.getItem('cp_user_profile')||'null'); if(p){setProfile({...{name:'',phone:'',email:''},...p}); setForm(f=>({...f,...p}))}}catch{} if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}},[]);
   useEffect(()=>{localStorage.setItem('cp_reservations',JSON.stringify(reservations))},[reservations]);
   useEffect(() => {
-  const timer = setInterval(async () => {
+  async function syncReservations() {
     try {
-      const r = await fetch('/api/app-data');
+      const r = await fetch('/api/reservations');
       const j = await r.json();
 
-      if (Array.isArray(j?.data?.reservations)) {
-        setReservations(j.data.reservations);
+      if (Array.isArray(j?.reservations)) {
+        setReservations(j.reservations);
+        localStorage.setItem('cp_reservations', JSON.stringify(j.reservations));
       }
     } catch {}
-  }, 60000);
+  }
+
+  syncReservations();
+
+  const timer = setInterval(syncReservations, 60000);
 
   return () => clearInterval(timer);
 }, []);

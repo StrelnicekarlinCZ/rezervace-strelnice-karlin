@@ -106,6 +106,29 @@ export default function AdminPage(){
     String(r.id||'').toLowerCase().includes(q)
   );
 },[dayReservations,reservationFilter,reservationSearch]); const dayConfirmed=dayReservations.filter(r=>(r.status||'confirmed')==='confirmed').length; const dayCheckedIn=dayReservations.filter(r=>r.status==='checked_in').length; const dayNoShow=dayReservations.filter(r=>r.status==='no_show').length; const dayCancelled=dayReservations.filter(r=>r.status==='cancelled').length; const dayRevenue=dayReservations.filter(r=>r.status!=='cancelled').reduce((sum,r)=>sum+getReservationPrice(r,categories),0); const dayCheckedRevenue=dayReservations.filter(r=>r.status==='checked_in').reduce((sum,r)=>sum+getReservationPrice(r,categories),0); const todayIso=new Date().toISOString().slice(0,10); const pastReservations=useMemo(()=>reservations.filter(r=>r.date<todayIso),[reservations,todayIso]); const futureReservations=useMemo(()=>reservations.filter(r=>r.date>=todayIso),[reservations,todayIso]); const monthReservations=useMemo(()=>reservations.filter(r=>monthKeyFromIso(r.date)===thisMonthKey()),[reservations]); const monthCheckedIn=monthReservations.filter(r=>r.status==='checked_in').length; const monthConfirmed=monthReservations.filter(r=>(r.status||'confirmed')==='confirmed').length; const monthNoShow=monthReservations.filter(r=>r.status==='no_show').length; const monthCancelled=monthReservations.filter(r=>r.status==='cancelled').length; const monthRevenue=monthReservations.filter(r=>r.status!=='cancelled').reduce((sum,r)=>sum+getReservationPrice(r,categories),0); const monthCheckedRevenue=monthReservations.filter(r=>r.status==='checked_in').reduce((sum,r)=>sum+getReservationPrice(r,categories),0); const serviceStats=useMemo(()=>{const map=new Map<string,{name:string;count:number;checked:number;revenue:number}>(); for(const r of reservations){const key=r.serviceId||r.serviceName; const item=map.get(key)||{name:r.serviceName,count:0,checked:0,revenue:0}; item.count++; if(r.status==='checked_in') item.checked++; if(r.status!=='cancelled') item.revenue+=getReservationPrice(r,categories); map.set(key,item);} return Array.from(map.values()).sort((a,b)=>b.count-a.count).slice(0,5)},[reservations,categories]); const revenue=dayRevenue;
+  function searchReservation(){
+  const q=reservationSearch.trim().toLowerCase();
+
+  if(!q){
+    alert('Zadejte jméno, e-mail, telefon nebo ID rezervace.');
+    return;
+  }
+
+  const found=reservations.find(r=>
+    String(r.name||'').toLowerCase().includes(q) ||
+    String(r.email||'').toLowerCase().includes(q) ||
+    String(r.phone||'').toLowerCase().includes(q) ||
+    String(r.id||'').toLowerCase().includes(q)
+  );
+
+  if(!found){
+    alert('Rezervace nenalezena.');
+    return;
+  }
+
+  setFilterDate(found.date);
+  setReservationFilter('all');
+}
   function toast(t:string){setSaved(t);setTimeout(()=>setSaved(''),1600)} async function saveAll(){try{localStorage.setItem('cp_categories',JSON.stringify(categories)); localStorage.setItem('cp_settings',JSON.stringify(settings)); await fetch('/api/app-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings,categories,reservations,blocked})}).catch(()=>null); toast('Uloženo')}catch(e){alert('Data jsou příliš velká pro lokální úložiště. Zmenšete obrázek nebo použijeme serverové ukládání souborů.')}}
   function resetAll(){if(!confirm('Vrátit výchozí data?'))return; setCategories(defaultCategories); setSettings(defaultSettings); localStorage.setItem('cp_categories',JSON.stringify(defaultCategories)); localStorage.setItem('cp_settings',JSON.stringify(defaultSettings)); toast('Obnoveno')}
 function login(){const now=Date.now(); const currentLock=getAdminLockUntil(); if(currentLock>now){setLockUntil(currentLock); setLoginError(`Přihlášení je dočasně zablokováno. Zkuste to za ${formatRemainingLock(currentLock-now)}.`); return;} const pass=loginPassword.trim(); const adminPass=String(settings.adminPassword||'').trim(); if(adminPass && pass===adminPass){sessionStorage.setItem('cp_admin_auth','1'); clearAdminSecurityState(); setLockUntil(0); setAuthed(true); setLoginError(''); setLastActivity(Date.now()); return;} const attempts=getAdminAttempts()+1; localStorage.setItem('cp_admin_attempts',String(attempts)); if(attempts>=ADMIN_MAX_LOGIN_ATTEMPTS){lockAdminLogin(); setLockUntil(getAdminLockUntil()); setLoginError('Příliš mnoho špatných pokusů. Přihlášení je zablokováno na 10 minut.'); return;} setLoginError(`Špatné heslo. Zbývá ${ADMIN_MAX_LOGIN_ATTEMPTS-attempts} pokusů.`)} function logout(){sessionStorage.removeItem('cp_admin_auth');setAuthed(false);setLoginPassword('');setLoginError('')}
@@ -287,11 +310,23 @@ if(!authed)return <main className="admin-shell">
   <div className="admin-card" style={{marginTop:16}}><div className="section-title" style={{marginTop:0}}><div><h2><Database size={18}/> Statistiky služeb</h2><p>Top služby podle počtu rezervací. Tržba je orientační podle nastavených cen služeb.</p></div></div><div className="table-wrap"><table className="table"><thead><tr><th>Služba</th><th>Rezervací</th><th>Odbaveno</th><th>Úspěšnost</th><th>Tržba odhad</th></tr></thead><tbody>{serviceStats.length===0&&<tr><td colSpan={5}>Zatím nejsou žádná statistická data.</td></tr>}{serviceStats.map(s=><tr key={s.name}><td><strong>{s.name}</strong></td><td>{s.count}</td><td>{s.checked}</td><td>{percent(s.checked,s.count)}</td><td>{s.revenue.toLocaleString('cs-CZ')} Kč</td></tr>)}</tbody></table></div></div>
   <div className="admin-grid"><div className="admin-card"><div className="section-title" style={{marginTop:0}}><div><h2><CalendarDays size={18}/> Kalendář rezervací</h2><p>Vyber datum, sleduj obsazenost a spravuj rezervace.</p></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button className="small-btn" onClick={exportCsvDay}><Download size={14}/> CSV den</button><button className="small-btn" onClick={exportCsv}><Download size={14}/> CSV celkem</button><button className="small-btn" onClick={exportJson}><Database size={14}/> JSON</button><button className="small-btn" onClick={backupDatabase}><Database size={14}/> Záloha DB</button><button className="small-btn" onClick={()=>backupFileRef.current?.click()}><Download size={14}/> Obnovit DB</button><input ref={backupFileRef} type="file" accept="application/json,.json" style={{display:'none'}} onChange={e=>restoreDatabase(e.target.files?.[0])}/></div></div><div className="field" style={{maxWidth:260,marginBottom:14}}><label>Datum</label><input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)}/></div> <div className="field" style={{maxWidth:360,marginBottom:14}}>
   <label>Vyhledat rezervaci</label>
+
+<div style={{display:'flex',gap:8}}>
   <input
     value={reservationSearch}
     onChange={e=>setReservationSearch(e.target.value)}
+    onKeyDown={e=>{if(e.key==='Enter')searchReservation()}}
     placeholder="Jméno, e-mail, telefon nebo číslo rezervace"
   />
+
+  <button
+    type="button"
+    className="small-btn"
+    onClick={searchReservation}
+  >
+    Vyhledat
+  </button>
+</div>
 </div><div className="field" style={{marginBottom:14}}><label>Filtr rezervací</label><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button className={`small-btn ${reservationFilter==='all'?'active':''}`} onClick={()=>setReservationFilter('all')}>Vše ({dayReservations.length})</button><button className={`small-btn ${reservationFilter==='confirmed'?'active':''}`} onClick={()=>setReservationFilter('confirmed')}>Potvrzeno ({dayConfirmed})</button><button className={`small-btn ${reservationFilter==='checked_in'?'active':''}`} style={reservationFilter==='checked_in'?{background:'var(--green2)',color:'#111'}:{}} onClick={()=>setReservationFilter('checked_in')}>Odbaveno ({dayCheckedIn})</button><button className={`small-btn ${reservationFilter==='no_show'?'active':''}`} onClick={()=>setReservationFilter('no_show')}>Nedorazil ({dayNoShow})</button><button className={`small-btn ${reservationFilter==='cancelled'?'active':''}`} onClick={()=>setReservationFilter('cancelled')}>Storno ({dayCancelled})</button></div></div><div className="admin-day-nav"><button className="small-btn arrow-btn" onClick={()=>setWeekOffset(w=>w-7)}><ChevronLeft size={20}/></button><div className="admin-dayline">{Array.from({length:7},(_,i)=>{const dayIndex=weekOffset+i;const d=new Date();d.setDate(d.getDate()+dayIndex);const iso=d.toISOString().slice(0,10);const count=reservations.filter(r=>r.date===iso).length;return <button key={iso} className={`day-pill ${filterDate===iso?'active':''}`} onClick={()=>setFilterDate(iso)}><strong>{dayIndex===0?'Dnes':dayIndex===1?'Zítra':new Intl.DateTimeFormat('cs-CZ',{weekday:'short'}).format(d)}</strong><span>{new Intl.DateTimeFormat('cs-CZ',{day:'numeric',month:'numeric'}).format(d)}</span><small>{count} rez.</small></button>})}</div><button className="small-btn arrow-btn" onClick={()=>setWeekOffset(w=>w+7)}><ChevronRight size={20}/></button></div><div className="table-wrap"><table className="table"><thead><tr><th>Čas</th><th>Jméno</th><th>Služba</th><th>Kontakt</th><th></th></tr></thead><tbody>{visibleDayReservations.length===0&&<tr><td colSpan={5}>{dayReservations.length===0?'Pro tento den zatím není žádná rezervace.':'Filtru neodpovídá žádná rezervace.'}</td></tr>}{visibleDayReservations.map(r=><tr key={r.id}><td><strong style={{color:'var(--green2)'}}>{r.time}–{r.endTime}</strong></td><td>{r.name}<br/><small>{r.id} · {reservationStatusLabel(r)}</small>{r.status==='checked_in'&&<><br/><small style={{color:'var(--green2)',fontWeight:800}}>✓ Odbaveno{r.checkedInAt?` · ${formatDateTimeCZ(r.checkedInAt)}`:''}</small></>}</td><td>{r.categoryName}<br/><small>{r.serviceName}</small></td><td>{r.phone}<br/><small>{r.email}</small></td><td><div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button className="small-btn" onClick={()=>setReservations(x=>x.map(y=>y.id===r.id?{...y,status:'confirmed',checkedInAt:undefined}:y))}>OK</button><button className="small-btn" style={{background:'var(--green2)',color:'#111'}} onClick={()=>setReservations(x=>x.map(y=>y.id===r.id?{...y,status:'checked_in',checkedInAt:y.checkedInAt||new Date().toISOString()}:y))}>Odbaveno</button><button className="small-btn danger" onClick={()=>setReservations(x=>x.map(y=>y.id===r.id?{...y,status:'no_show'}:y))}>Nedorazil</button><button className="small-btn danger" onClick={()=>setReservations(x=>x.map(y=>y.id===r.id?{...y,status:'cancelled'}:y))}>Storno</button><button
   className="small-btn danger"
   onClick={async () => {

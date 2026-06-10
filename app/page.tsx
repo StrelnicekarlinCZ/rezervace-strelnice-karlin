@@ -281,6 +281,20 @@ export default function HomePage(){
     fetch('/api/app-data').then(r=>r.json()).then(j=>{ const d=j?.data; if(!d) return; if(Array.isArray(d.categories)&&d.categories.length) setCategories(d.categories); if(Array.isArray(d.reservations)) setReservations(d.reservations); if(Array.isArray(d.blocked)) setBlocked(d.blocked); if(d.settings) setSettings((cur:any)=>({...cur,...d.settings})); }).catch(()=>{});
   }catch{} try{const p=JSON.parse(localStorage.getItem('cp_user_profile')||'null'); if(p){setProfile({...{name:'',phone:'',email:''},...p}); setForm(f=>({...f,...p}))}}catch{} if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}},[]);
   useEffect(()=>{localStorage.setItem('cp_reservations',JSON.stringify(reservations))},[reservations]);
+  useEffect(() => {
+  const timer = setInterval(async () => {
+    try {
+      const r = await fetch('/api/app-data');
+      const j = await r.json();
+
+      if (Array.isArray(j?.data?.reservations)) {
+        setReservations(j.data.reservations);
+      }
+    } catch {}
+  }, 60000);
+
+  return () => clearInterval(timer);
+}, []);
   useEffect(()=>{try{localStorage.setItem('cp_lang',lang)}catch{}},[lang]);
   const category=categories.find(c=>c.id===catId)||categories[0]; const sub=category?.services.find(s=>s.id===serviceId)||category?.services[0];
   useEffect(()=>{if(category && !category.services.some(s=>s.id===serviceId))setServiceId(category.services[0]?.id||'')},[catId,categories,category,serviceId]);

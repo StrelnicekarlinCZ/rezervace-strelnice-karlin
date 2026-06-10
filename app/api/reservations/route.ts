@@ -52,19 +52,24 @@ const reservationEmail = String(reservation?.email || '').trim().toLowerCase();
 const reservationPhone = String(reservation?.phone || '').trim();
 
 if (maxActiveReservations > 0 && (reservationEmail || reservationPhone)) {
-  const activeForContact = reservations.filter((r: any) => {
-    if (r?.status === 'cancelled' || r?.status === 'no_show') return false;
+  const today = new Date().toISOString().slice(0, 10);
 
-    const sameEmail =
-      reservationEmail &&
-      String(r?.email || '').trim().toLowerCase() === reservationEmail;
+const activeForContact = reservations.filter((r: any) => {
+  const status = r?.status || 'confirmed';
 
-    const samePhone =
-      reservationPhone &&
-      String(r?.phone || '').trim() === reservationPhone;
+  if (status !== 'confirmed') return false;
+  if (String(r?.date || '') < today) return false;
 
-    return sameEmail || samePhone;
-  });
+  const sameEmail =
+    reservationEmail &&
+    String(r?.email || '').trim().toLowerCase() === reservationEmail;
+
+  const samePhone =
+    reservationPhone &&
+    String(r?.phone || '').trim() === reservationPhone;
+
+  return sameEmail || samePhone;
+});
 
   if (activeForContact.length >= maxActiveReservations) {
     return NextResponse.json(

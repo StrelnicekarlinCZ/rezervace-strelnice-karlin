@@ -45,6 +45,37 @@ export async function POST(request: Request) {
     const reservation = await request.json();
     const data = (await readAppData()) ?? { version: '1.27', settings: {}, categories: [], reservations: [], blocked: [] };
     const reservations = Array.isArray(data.reservations) ? data.reservations : [];
+    const settings = data?.settings || {};
+const maxActiveReservations = Number(settings?.maxActiveReservations || 0);
+
+const reservationEmail = String(reservation?.email || '').trim().toLowerCase();
+const reservationPhone = String(reservation?.phone || '').trim();
+
+if (maxActiveReservations > 0 && (reservationEmail || reservationPhone)) {
+  const activeForContact = reservations.filter((r: any) => {
+    if (r?.status === 'cancelled' || r?.status === 'no_show') return false;
+
+    const sameEmail =
+      reservationEmail &&
+      String(r?.email || '').trim().toLowerCase() === reservationEmail;
+
+    const samePhone =
+      reservationPhone &&
+      String(r?.phone || '').trim() === reservationPhone;
+
+    return sameEmail || samePhone;
+  });
+
+  if (activeForContact.length >= maxActiveReservations) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: `Na tento kontakt už existuje maximální počet aktivních rezervací (${maxActiveReservations}).`,
+      },
+      { status: 409 }
+    );
+  }
+}
     const conflict = reservations.some((r: any) =>
       r?.status !== 'cancelled' &&
       r?.date === reservation?.date &&

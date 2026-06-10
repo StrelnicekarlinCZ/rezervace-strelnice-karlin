@@ -135,21 +135,7 @@ useEffect(()=>{
     return;
   }
 
-  const found=reservations.find(r=>
-    String(r.name||'').toLowerCase().includes(q) ||
-    String(r.email||'').toLowerCase().includes(q) ||
-    String(r.phone||'').toLowerCase().includes(q) ||
-    String(r.id||'').toLowerCase().includes(q)
-  );
 
-  if(!found){
-    alert('Rezervace nenalezena.');
-    return;
-  }
-
-  setFilterDate(found.date);
-  setReservationFilter('all');
-}
 
   const found=reservations.find(r=>
     String(r.name||'').toLowerCase().includes(q) ||

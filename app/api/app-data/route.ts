@@ -57,27 +57,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const value = {
-  version: '1.28',
-  updatedAt: new Date().toISOString(),
-
-  settings: body?.settings ?? {},
-
-  categories: Array.isArray(body?.categories)
-    ? body.categories
-    : [],
-
-  reservations: Array.isArray(body?.reservations)
-    ? body.reservations
-    : [],
-
-  clients: Array.isArray(body?.clients)
-    ? body.clients
-    : [],
-
-  blocked: Array.isArray(body?.blocked)
-    ? body.blocked
-    : [],
-};
+      version: '1.28',
+      updatedAt: new Date().toISOString(),
+      settings: body?.settings ?? {},
+      categories: Array.isArray(body?.categories) ? body.categories : [],
+      reservations: Array.isArray(body?.reservations) ? body.reservations : [],
+      clients: Array.isArray(body?.clients) ? body.clients : [],
+      blocked: Array.isArray(body?.blocked) ? body.blocked : [],
+    };
     await writeAppData(value);
     return NextResponse.json({ ok: true, mode: dbEnabled() ? 'postgresql' : 'local', saved: dbEnabled() });
   } catch (error: any) {

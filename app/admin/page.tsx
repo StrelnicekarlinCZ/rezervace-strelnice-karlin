@@ -5,6 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Database, Download, Lock, Plus
 import ClientCard from '../../components/ClientCard';
 import ReservationSearch from '../../components/ReservationSearch';
 import ReservationTable from '../../components/ReservationTable';
+import AdminDashboard from '../../components/AdminDashboard';
 
 type SubService = { id: string; name: string; duration: number; price: number; capacity: number; description: string; image?: string; detailImage?: string };
 type Category = { id: string; name: string; description: string; image?: string; icon: 'target' | 'user' | 'shield' | 'users'; services: SubService[] };
@@ -406,9 +407,21 @@ if(!authed)return <main className="admin-shell">
     </button><span className="small-btn" style={{pointerEvents:'none',opacity:.8}}>Auto odhlášení: 15 min</span>
   </div>
 </header>
-  <div className="stats stats-four"><div className="stat"><p>Rezervací ve dni</p><strong>{dayReservations.length}</strong></div><div className="stat"><p>Odbaveno ve dni</p><strong>{dayCheckedIn}</strong><small>{percent(dayCheckedIn,dayReservations.length)} dne</small></div><div className="stat"><p>Čeká</p><strong>{dayConfirmed}</strong></div><div className="stat"><p>Denní tržba odhad</p><strong>{dayRevenue.toLocaleString('cs-CZ')} Kč</strong><small>odbaveno {dayCheckedRevenue.toLocaleString('cs-CZ')} Kč</small></div></div>
-  <div className="stats stats-four" style={{marginTop:12}}><div className="stat"><p>Tento měsíc</p><strong>{monthReservations.length}</strong><small>rezervací</small></div><div className="stat"><p>Měsíc odbaveno</p><strong>{monthCheckedIn}</strong><small>{percent(monthCheckedIn,monthReservations.length)}</small></div><div className="stat"><p>Měsíc čeká / no-show</p><strong>{monthConfirmed} / {monthNoShow}</strong><small>storno {monthCancelled}</small></div><div className="stat"><p>Měsíční tržba odhad</p><strong>{monthRevenue.toLocaleString('cs-CZ')} Kč</strong><small>odbaveno {monthCheckedRevenue.toLocaleString('cs-CZ')} Kč</small></div></div>
-  <div className="admin-card" style={{marginTop:16}}><div className="section-title" style={{marginTop:0}}><div><h2><Database size={18}/> Statistiky služeb</h2><p>Top služby podle počtu rezervací. Tržba je orientační podle nastavených cen služeb.</p></div></div><div className="table-wrap"><table className="table"><thead><tr><th>Služba</th><th>Rezervací</th><th>Odbaveno</th><th>Úspěšnost</th><th>Tržba odhad</th></tr></thead><tbody>{serviceStats.length===0&&<tr><td colSpan={5}>Zatím nejsou žádná statistická data.</td></tr>}{serviceStats.map(s=><tr key={s.name}><td><strong>{s.name}</strong></td><td>{s.count}</td><td>{s.checked}</td><td>{percent(s.checked,s.count)}</td><td>{s.revenue.toLocaleString('cs-CZ')} Kč</td></tr>)}</tbody></table></div></div>
+  <AdminDashboard
+    dayReservationsCount={dayReservations.length}
+    dayCheckedIn={dayCheckedIn}
+    dayConfirmed={dayConfirmed}
+    dayRevenue={dayRevenue}
+    dayCheckedRevenue={dayCheckedRevenue}
+    monthReservationsCount={monthReservations.length}
+    monthCheckedIn={monthCheckedIn}
+    monthConfirmed={monthConfirmed}
+    monthNoShow={monthNoShow}
+    monthCancelled={monthCancelled}
+    monthRevenue={monthRevenue}
+    monthCheckedRevenue={monthCheckedRevenue}
+    serviceStats={serviceStats}
+  />
   <div className="admin-grid"><div className="admin-card"><div className="section-title" style={{marginTop:0}}><div><h2><CalendarDays size={18}/> Kalendář rezervací</h2><p>Vyber datum, sleduj obsazenost a spravuj rezervace.</p></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button className="small-btn" onClick={exportCsvDay}><Download size={14}/> CSV den</button><button className="small-btn" onClick={exportCsv}><Download size={14}/> CSV celkem</button><button className="small-btn" onClick={exportJson}><Database size={14}/> JSON</button><button className="small-btn" onClick={backupDatabase}><Database size={14}/> Záloha DB</button><button className="small-btn" onClick={()=>backupFileRef.current?.click()}><Download size={14}/> Obnovit DB</button><input ref={backupFileRef} type="file" accept="application/json,.json" style={{display:'none'}} onChange={e=>restoreDatabase(e.target.files?.[0])}/></div></div><div className="field" style={{maxWidth:260,marginBottom:14}}><label>Datum</label><input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)}/></div> <ReservationSearch
   value={reservationSearch}
   foundCount={searchMatches.length}

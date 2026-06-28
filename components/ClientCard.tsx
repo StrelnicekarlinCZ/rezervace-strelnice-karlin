@@ -83,17 +83,33 @@ function statusLabel(status?: Reservation['status']) {
   return 'Potvrzeno';
 }
 
+function statusMark(status?: Reservation['status']) {
+  if (status === 'checked_in') return '✓';
+  if (status === 'no_show') return '✕';
+  if (status === 'cancelled') return '↺';
+  return '•';
+}
+
 function getReservationPrice(r: Reservation, categories: Category[]) {
   return categories.find(c => c.id === r.categoryId)?.services.find(s => s.id === r.serviceId)?.price || 0;
+}
+
+function percent(part: number, total: number) {
+  if (!total) return '0 %';
+  return `${Math.round((part / total) * 100)} %`;
 }
 
 function csvCell(v: unknown) {
   return `"${String(v ?? '').replaceAll('"', '""')}"`;
 }
 
+function cleanFileName(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'klient';
+}
+
 function downloadClientCsv(client: Client, list: Reservation[], categories: Category[]) {
   const lines = [
-    ['jméno', 'telefon', 'email', 'datum', 'od', 'do', 'služba', 'číslo rezervace', 'stav', 'cena'].map(csvCell).join(';'),
+    ['jméno', 'telefon', 'email', 'datum', 'od', 'do', 'kategorie', 'služba', 'číslo rezervace', 'stav', 'cena', 'poznámka'].map(csvCell).join(';'),
     ...list
       .slice()
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
@@ -104,17 +120,19 @@ function downloadClientCsv(client: Client, list: Reservation[], categories: Cate
         r.date,
         r.time,
         r.endTime,
+        r.categoryName,
         r.serviceName,
         r.id,
         statusLabel(r.status),
         getReservationPrice(r, categories),
+        r.note || '',
       ].map(csvCell).join(';')),
   ];
 
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `klient-${(client.name || client.email || client.phone || 'export').replace(/[^a-zA-Z0-9_-]+/g, '-')}.csv`;
+  a.download = `${cleanFileName(client.name || client.email || client.phone || 'klient')}-historie.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -162,6 +180,7 @@ export default function ClientCard({ reservation, client, reservations, categori
     const noShow = clientReservations.filter(r => r.status === 'no_show').length;
     const confirmed = clientReservations.filter(r => !r.status || r.status === 'confirmed').length;
     const revenue = clientReservations.filter(r => r.status !== 'cancelled').reduce((sum, r) => sum + getReservationPrice(r, categories), 0);
+    const checkedRevenue = clientReservations.filter(r => r.status === 'checked_in').reduce((sum, r) => sum + getReservationPrice(r, categories), 0);
     const dates = clientReservations.map(r => r.date).filter(Boolean).sort();
 
     return {
@@ -171,16 +190,23 @@ export default function ClientCard({ reservation, client, reservations, categori
       noShow,
       confirmed,
       revenue,
+      checkedRevenue,
+      averageRevenue: total ? Math.round(revenue / total) : 0,
+      successRate: percent(checkedIn, total),
       firstVisit: dates[0] || '',
       lastVisit: dates[dates.length - 1] || '',
     };
   }, [clientReservations, categories]);
 
-  const risk = stats.noShow >= 2
-    ? { label: '🔴 Rizikový klient', text: `${stats.noShow}× nedorazil` }
-    : stats.noShow === 1
-      ? { label: '🟡 Pozor', text: '1× nedorazil' }
-      : { label: '🟢 Spolehlivý klient', text: 'bez no-show záznamu' };
+  const rating = draft.banned
+    ? { label: '⛔ Zakázaný klient', text: 'obsluha má klienta prověřit před rezervací', border: 'rgba(255,80,80,.55)' }
+    : draft.vip
+      ? { label: '⭐ VIP klient', text: 'označený jako VIP', border: 'rgba(255,215,80,.65)' }
+      : stats.noShow >= 2
+        ? { label: '🔴 Rizikový klient', text: `${stats.noShow}× nedorazil`, border: 'rgba(255,80,80,.55)' }
+        : stats.noShow === 1
+          ? { label: '🟡 Pozor', text: '1× nedorazil', border: 'rgba(255,210,80,.55)' }
+          : { label: '🟢 Spolehlivý klient', text: 'bez no-show záznamu', border: 'rgba(156,255,56,.45)' };
 
   function save() {
     const updated: Client = {
@@ -217,22 +243,22 @@ export default function ClientCard({ reservation, client, reservations, categori
       <div
         className="admin-card"
         style={{
-          width: 'min(960px, 100%)',
+          width: 'min(1080px, 100%)',
           maxHeight: '92vh',
           overflow: 'auto',
-          border: '1px solid rgba(156,255,56,.35)',
+          border: `1px solid ${rating.border}`,
           boxShadow: '0 0 50px rgba(0,0,0,.55)',
         }}
       >
         <div className="section-title" style={{ marginTop: 0 }}>
           <div>
             <h2>👤 Karta klienta</h2>
-            <p>{risk.label} · {risk.text}</p>
+            <p>{rating.label} · {rating.text}</p>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="small-btn" type="button" onClick={() => downloadClientCsv(draft, clientReservations, categories)}>
-              Export klienta CSV
+              Export historie CSV
             </button>
             <button className="small-btn" type="button" onClick={onClose}>
               Zavřít
@@ -241,10 +267,17 @@ export default function ClientCard({ reservation, client, reservations, categori
         </div>
 
         <div className="stats stats-four" style={{ marginTop: 12 }}>
-          <div className="stat"><p>Celkem rezervací</p><strong>{stats.total}</strong></div>
+          <div className="stat"><p>Celkem rezervací</p><strong>{stats.total}</strong><small>úspěšnost {stats.successRate}</small></div>
           <div className="stat"><p>Odbaveno</p><strong>{stats.checkedIn}</strong><small>čeká {stats.confirmed}</small></div>
-          <div className="stat"><p>Nedorazil / storno</p><strong>{stats.noShow} / {stats.cancelled}</strong></div>
-          <div className="stat"><p>Útrata odhad</p><strong>{stats.revenue.toLocaleString('cs-CZ')} Kč</strong></div>
+          <div className="stat"><p>Nedorazil / storno</p><strong>{stats.noShow} / {stats.cancelled}</strong><small>{rating.label}</small></div>
+          <div className="stat"><p>Útrata odhad</p><strong>{stats.revenue.toLocaleString('cs-CZ')} Kč</strong><small>průměr {stats.averageRevenue.toLocaleString('cs-CZ')} Kč</small></div>
+        </div>
+
+        <div className="stats stats-four" style={{ marginTop: 12 }}>
+          <div className="stat"><p>První návštěva</p><strong>{formatDate(stats.firstVisit)}</strong></div>
+          <div className="stat"><p>Poslední návštěva</p><strong>{formatDate(stats.lastVisit)}</strong></div>
+          <div className="stat"><p>Odbavená tržba</p><strong>{stats.checkedRevenue.toLocaleString('cs-CZ')} Kč</strong></div>
+          <div className="stat"><p>Klient od</p><strong>{formatDateTimeCZ(draft.createdAt)}</strong></div>
         </div>
 
         <div className="admin-grid" style={{ marginTop: 16 }}>
@@ -286,10 +319,10 @@ export default function ClientCard({ reservation, client, reservations, categori
               <div className="field wide">
                 <label>Interní poznámka ke klientovi</label>
                 <textarea
-                  rows={5}
+                  rows={6}
                   value={draft.note || ''}
                   onChange={e => setDraft({ ...draft, note: e.target.value })}
-                  placeholder="Např. VIP, levák, půjčuje Glock 17, platba fakturou..."
+                  placeholder="Např. VIP, levák, půjčuje Glock 17, platba fakturou, firemní zákazník..."
                 />
               </div>
             </div>
@@ -321,11 +354,11 @@ export default function ClientCard({ reservation, client, reservations, categori
             <div className="section-title" style={{ marginTop: 18 }}>
               <div>
                 <h2>Historie klienta</h2>
-                <p>První návštěva: {formatDate(stats.firstVisit)} · poslední: {formatDate(stats.lastVisit)}</p>
+                <p>{stats.total} rezervací · první {formatDate(stats.firstVisit)} · poslední {formatDate(stats.lastVisit)}</p>
               </div>
             </div>
 
-            <div className="table-wrap" style={{ maxHeight: 300, overflow: 'auto' }}>
+            <div className="table-wrap" style={{ maxHeight: 380, overflow: 'auto' }}>
               <table className="table">
                 <thead>
                   <tr>
@@ -333,18 +366,20 @@ export default function ClientCard({ reservation, client, reservations, categori
                     <th>Čas</th>
                     <th>Služba</th>
                     <th>Stav</th>
+                    <th>Cena</th>
                   </tr>
                 </thead>
                 <tbody>
                   {clientReservations.length === 0 && (
-                    <tr><td colSpan={4}>Zatím žádná historie.</td></tr>
+                    <tr><td colSpan={5}>Zatím žádná historie.</td></tr>
                   )}
                   {clientReservations.map(r => (
                     <tr key={r.id}>
                       <td>{formatDate(r.date)}</td>
                       <td>{r.time}–{r.endTime}</td>
-                      <td>{r.serviceName}<br /><small>{r.id}</small></td>
-                      <td>{statusLabel(r.status)}</td>
+                      <td>{r.serviceName}<br /><small>{r.id}</small>{r.note && <><br /><small>{r.note}</small></>}</td>
+                      <td><strong>{statusMark(r.status)} {statusLabel(r.status)}</strong></td>
+                      <td>{getReservationPrice(r, categories).toLocaleString('cs-CZ')} Kč</td>
                     </tr>
                   ))}
                 </tbody>
@@ -356,4 +391,3 @@ export default function ClientCard({ reservation, client, reservations, categori
     </div>
   );
 }
-

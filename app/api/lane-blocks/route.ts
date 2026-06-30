@@ -1,63 +1,19 @@
-
 import { NextResponse } from 'next/server';
-import { dbEnabled, prisma } from '../../../lib/prisma';
+import { dbEnabled } from '../../../lib/prisma';
+import { readAppData, writeAppData, normalizeAppData } from '../../../lib/skisAppData';
+import { sanitizeLaneBlocks } from '../../../lib/skisLane';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const APP_DATA_KEY = 'appData';
-
-type LaneBlock = {
-  id: string;
-  lane: number;
-  date: string;
-  start: string;
-  end: string;
-  reason?: string;
-  instructor?: string;
-  note?: string;
-  manualName?: string;
-  offline?: boolean;
-  active?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-async function readAppData(): Promise<any> {
-  if (!dbEnabled()) return null;
-  const row = await prisma.appSetting.findUnique({ where: { key: APP_DATA_KEY } });
-  return row?.value ?? null;
-}
-
-async function writeAppData(value: any) {
-  if (!dbEnabled()) return null;
-  return prisma.appSetting.upsert({
-    where: { key: APP_DATA_KEY },
-    create: { key: APP_DATA_KEY, value },
-    update: { value },
-  });
-}
-
-function isValidBlock(block: any): block is LaneBlock {
-  return Boolean(
-    block &&
-    block.id &&
-    Number(block.lane) > 0 &&
-    /^\d{4}-\d{2}-\d{2}$/.test(String(block.date || '')) &&
-    /^\d{2}:\d{2}$/.test(String(block.start || '')) &&
-    /^\d{2}:\d{2}$/.test(String(block.end || ''))
-  );
-}
-
 export async function GET() {
   try {
-    const data = (await readAppData()) ?? {};
-    const laneBlocks = Array.isArray(data.laneBlocks) ? data.laneBlocks : [];
+    const data = normalizeAppData(await readAppData());
 
     return NextResponse.json({
       ok: true,
       mode: dbEnabled() ? 'postgresql' : 'local',
-      laneBlocks,
+      laneBlocks: data.laneBlocks,
     });
   } catch (error: any) {
     console.error('LANE_BLOCKS_GET_ERROR', error);
@@ -72,28 +28,12 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const blocks = Array.isArray(body?.laneBlocks) ? body.laneBlocks : [];
-    const sanitized = blocks
-      .filter(isValidBlock)
-      .map((b: LaneBlock) => ({
-        ...b,
-        lane: Number(b.lane),
-        active: b.active !== false,
-        updatedAt: new Date().toISOString(),
-      }));
+    const sanitized = sanitizeLaneBlocks(blocks);
 
-    const data = (await readAppData()) ?? {
-      version: '1.29',
-      settings: {},
-      categories: [],
-      reservations: [],
-      clients: [],
-      blocked: [],
-      laneBlocks: [],
-    };
-
+    const data = normalizeAppData(await readAppData());
     const next = {
       ...data,
-      version: '1.29',
+      version: '3.0',
       updatedAt: new Date().toISOString(),
       laneBlocks: sanitized,
     };

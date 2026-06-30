@@ -261,6 +261,43 @@ async function deleteReservation(r:Reservation){
     alert('Chyba při mazání rezervace: '+(e?.message||e));
   }
 }
+
+async function createReservationFromClient(newReservation: Reservation){
+  const optimistic=[newReservation,...reservations.filter(r=>r.id!==newReservation.id)];
+  setReservations(optimistic);
+
+  try{
+    const res=await fetch('/api/reservations',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(newReservation)
+    });
+    const data=await res.json().catch(()=>({}));
+
+    if(!res.ok||!data.ok){
+      setReservations(reservations);
+      throw new Error(data?.message||'Rezervaci se nepodařilo vytvořit.');
+    }
+
+    if(Array.isArray(data?.reservations)){
+      setReservations(data.reservations);
+    }
+
+    if(Array.isArray(data?.clients)){
+      setClients(data.clients);
+    }
+
+    setSelectedReservation(newReservation);
+    setFilterDate(newReservation.date);
+    setReservationFilter('all');
+    setActiveAdminModule('reservations');
+    toast('Rezervace vytvořena');
+  }catch(e:any){
+    setReservations(reservations);
+    throw e;
+  }
+}
+
   function toast(t:string){setSaved(t);setTimeout(()=>setSaved(''),1600)} async function saveAll(){try{localStorage.setItem('cp_categories',JSON.stringify(categories)); localStorage.setItem('cp_settings',JSON.stringify(settings)); await fetch('/api/app-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings,categories,reservations,clients,blocked})}).catch(()=>null); toast('Uloženo')}catch(e){alert('Data jsou příliš velká pro lokální úložiště. Zmenšete obrázek nebo použijeme serverové ukládání souborů.')}}
   function resetAll(){if(!confirm('Vrátit výchozí data?'))return; setCategories(defaultCategories); setSettings(defaultSettings); localStorage.setItem('cp_categories',JSON.stringify(defaultCategories)); localStorage.setItem('cp_settings',JSON.stringify(defaultSettings)); toast('Obnoveno')}
 function login(){const now=Date.now(); const currentLock=getAdminLockUntil(); if(currentLock>now){setLockUntil(currentLock); setLoginError(`Přihlášení je dočasně zablokováno. Zkuste to za ${formatRemainingLock(currentLock-now)}.`); return;} const pass=loginPassword.trim(); const adminPass=String(settings.adminPassword||'').trim(); if(adminPass && pass===adminPass){sessionStorage.setItem('cp_admin_auth','1'); clearAdminSecurityState(); setLockUntil(0); setAuthed(true); setLoginError(''); setLastActivity(Date.now()); return;} const attempts=getAdminAttempts()+1; localStorage.setItem('cp_admin_attempts',String(attempts)); if(attempts>=ADMIN_MAX_LOGIN_ATTEMPTS){lockAdminLogin(); setLockUntil(getAdminLockUntil()); setLoginError('Příliš mnoho špatných pokusů. Přihlášení je zablokováno na 10 minut.'); return;} setLoginError(`Špatné heslo. Zbývá ${ADMIN_MAX_LOGIN_ATTEMPTS-attempts} pokusů.`)} function logout(){sessionStorage.removeItem('cp_admin_auth');setAuthed(false);setLoginPassword('');setLoginError('')}
@@ -422,7 +459,7 @@ if(!authed)return <main className="admin-shell">
     </div>
   </section>
 </main>;
-  return <main className="admin-shell">{selectedReservation&&<ClientCard reservation={selectedReservation} client={selectedClient} reservations={reservations} categories={categories} onClose={()=>{setSelectedReservation(null);setSelectedClient(null)}} onSaveClient={saveClientCard}/>}<section className="admin-wrap">
+  return <main className="admin-shell">{selectedReservation&&<ClientCard reservation={selectedReservation} client={selectedClient} reservations={reservations} categories={categories} onClose={()=>{setSelectedReservation(null);setSelectedClient(null)}} onSaveClient={saveClientCard} onCreateReservation={createReservationFromClient}/>}<section className="admin-wrap">
     <header className="admin-head">
   <div>
     <p className="brand-kicker">STŘELNICE KARLÍN</p>

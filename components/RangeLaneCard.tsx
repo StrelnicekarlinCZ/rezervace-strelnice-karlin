@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { CheckCircle2, User, XCircle, Ban, AlertTriangle, Wrench, Edit3, UserCog } from 'lucide-react';
 
 type ReservationStatus = 'confirmed' | 'cancelled' | 'no_show' | 'checked_in';
@@ -42,6 +43,9 @@ type LaneMeta = {
   note?: string;
   instructor?: string;
   manualName?: string;
+  blockStart?: string;
+  blockEnd?: string;
+  blockId?: string;
 };
 
 type Props = {
@@ -59,7 +63,7 @@ type Props = {
   onToggleOffline?: (laneNumber: number) => void;
   onUpdateNote?: (laneNumber: number, note: string) => void;
   onUpdateInstructor?: (laneNumber: number, instructor: string) => void;
-  onManualOccupy?: (laneNumber: number, name: string) => void;
+  onManualOccupy?: (laneNumber: number, name: string, minutes: number) => void;
   onManualFree?: (laneNumber: number) => void;
 };
 
@@ -77,6 +81,17 @@ function statusLabel(status?: ReservationStatus) {
   if (status === 'cancelled') return 'storno';
   return 'čeká';
 }
+
+const inputStyle: CSSProperties = {
+  width: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
+  border: '1px solid rgba(255,255,255,.12)',
+  borderRadius: 9,
+  background: '#151818',
+  color: '#fff',
+  padding: '8px 9px',
+};
 
 export default function RangeLaneCard({
   laneNumber,
@@ -103,7 +118,11 @@ export default function RangeLaneCard({
   function manualOccupy() {
     const name = prompt(`Koho ručně zapsat na STAV ${laneNumber}?`);
     if (!name?.trim()) return;
-    onManualOccupy?.(laneNumber, name.trim());
+
+    const minutesRaw = prompt('Na kolik minut stav zablokovat pro online rezervace?', '60');
+    const minutes = Math.max(15, Math.min(480, Number(minutesRaw || 60) || 60));
+
+    onManualOccupy?.(laneNumber, name.trim(), minutes);
   }
 
   return (
@@ -114,36 +133,37 @@ export default function RangeLaneCard({
         borderRadius: 16,
         padding: 16,
         minHeight: 260,
+        overflow: 'hidden',
         boxShadow: urgent ? `0 0 0 1px ${cfg.border}, 0 0 26px ${cfg.bg}` : 'inset 0 1px 0 rgba(255,255,255,.04)',
       }}
     >
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
-        <div>
+        <div style={{minWidth:0}}>
           <div style={{opacity:.7,fontSize:12,fontWeight:900,textTransform:'uppercase',letterSpacing:.6}}>Střelecký stav</div>
           <h3 style={{margin:'3px 0 0',fontSize:24}}>STAV {laneNumber}</h3>
         </div>
-        <div style={{display:'inline-flex',alignItems:'center',gap:8,color:cfg.color,fontWeight:1000,border:`1px solid ${cfg.border}`,borderRadius:999,padding:'8px 11px',background:'rgba(0,0,0,.22)'}}>
+        <div style={{display:'inline-flex',alignItems:'center',gap:8,color:cfg.color,fontWeight:1000,border:`1px solid ${cfg.border}`,borderRadius:999,padding:'8px 11px',background:'rgba(0,0,0,.22)',whiteSpace:'nowrap'}}>
           <span>{cfg.icon}</span>{cfg.label}
         </div>
       </div>
 
-      <div style={{marginTop:12,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-        <label style={{display:'grid',gap:5,fontSize:12,fontWeight:900,opacity:.9}}>
+      <div style={{marginTop:12,display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:8}}>
+        <label style={{display:'grid',gap:5,fontSize:12,fontWeight:900,opacity:.9,minWidth:0}}>
           Instruktor
           <input
             value={laneMeta?.instructor || ''}
             onChange={e=>onUpdateInstructor?.(laneNumber,e.target.value)}
             placeholder="např. Petr"
-            style={{border:'1px solid rgba(255,255,255,.12)',borderRadius:9,background:'#151818',color:'#fff',padding:'8px 9px'}}
+            style={inputStyle}
           />
         </label>
-        <label style={{display:'grid',gap:5,fontSize:12,fontWeight:900,opacity:.9}}>
+        <label style={{display:'grid',gap:5,fontSize:12,fontWeight:900,opacity:.9,minWidth:0}}>
           Poznámka stavu
           <input
             value={laneMeta?.note || ''}
             onChange={e=>onUpdateNote?.(laneNumber,e.target.value)}
             placeholder="např. servis terče"
-            style={{border:'1px solid rgba(255,255,255,.12)',borderRadius:9,background:'#151818',color:'#fff',padding:'8px 9px'}}
+            style={inputStyle}
           />
         </label>
       </div>
@@ -151,7 +171,8 @@ export default function RangeLaneCard({
       {status === 'offline' ? (
         <div style={{marginTop:18,display:'grid',gap:10}}>
           <strong style={{fontSize:24,color:'#aaa'}}>MIMO PROVOZ</strong>
-          <p style={{margin:0,opacity:.72}}>Stav je dočasně vypnutý pro provoz.</p>
+          <p style={{margin:0,opacity:.72}}>Stav je dočasně vypnutý pro provoz a blokuje online rezervace.</p>
+          {laneMeta?.blockStart && laneMeta?.blockEnd && <small style={{opacity:.72}}>Blokace: {laneMeta.blockStart}–{laneMeta.blockEnd}</small>}
           <button type="button" className="small-btn" onClick={()=>onToggleOffline?.(laneNumber)}><Wrench size={14}/> Vrátit do provozu</button>
         </div>
       ) : !reservation && !manualName ? (
@@ -165,13 +186,14 @@ export default function RangeLaneCard({
         </div>
       ) : manualName ? (
         <div style={{marginTop:16,display:'grid',gap:10}}>
-          <div>
-            <strong style={{fontSize:19}}>{manualName}</strong><br />
+          <div style={{minWidth:0}}>
+            <strong style={{fontSize:19,wordBreak:'break-word'}}>{manualName}</strong><br />
             <small style={{opacity:.76}}>Ručně obsazený stav bez rezervace</small>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8,color:'#ffae2b',fontWeight:900}}>
-            <UserCog size={15}/> Ruční režim – neovlivňuje rezervace.
+            <UserCog size={15}/> Blokuje online rezervace v čase bloku.
           </div>
+          {laneMeta?.blockStart && laneMeta?.blockEnd && <small style={{opacity:.72}}>Blokace: {laneMeta.blockStart}–{laneMeta.blockEnd}</small>}
           <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:2}}>
             <button type="button" className="small-btn" onClick={manualOccupy}><Edit3 size={14}/> Upravit</button>
             <button type="button" className="small-btn danger" onClick={()=>onManualFree?.(laneNumber)}><Ban size={14}/> Uvolnit</button>
@@ -180,20 +202,20 @@ export default function RangeLaneCard({
         </div>
       ) : reservation ? (
         <div style={{marginTop:16,display:'grid',gap:10}}>
-          <div>
-            <strong style={{fontSize:19}}>{reservation.name}</strong>
+          <div style={{minWidth:0}}>
+            <strong style={{fontSize:19,wordBreak:'break-word'}}>{reservation.name}</strong>
             {client?.vip && <span style={{marginLeft:8,color:'#69a7ff',fontWeight:1000}}>VIP</span>}
             {client?.banned && <span style={{marginLeft:8,color:'#ff6b6b',fontWeight:1000}}>ZÁKAZ</span>}
             <br />
             <small style={{opacity:.76}}>{reservation.serviceName} · {statusLabel(reservation.status)}</small>
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <div style={{border:'1px solid rgba(255,255,255,.08)',borderRadius:12,padding:10,background:'rgba(0,0,0,.15)'}}>
+          <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:10}}>
+            <div style={{border:'1px solid rgba(255,255,255,.08)',borderRadius:12,padding:10,background:'rgba(0,0,0,.15)',minWidth:0}}>
               <small style={{opacity:.72}}>Čas</small><br />
               <strong>{reservation.time}–{reservation.endTime}</strong>
             </div>
-            <div style={{border:'1px solid rgba(255,255,255,.08)',borderRadius:12,padding:10,background:'rgba(0,0,0,.15)'}}>
+            <div style={{border:'1px solid rgba(255,255,255,.08)',borderRadius:12,padding:10,background:'rgba(0,0,0,.15)',minWidth:0}}>
               <small style={{opacity:.72}}>{typeof startsIn === 'number' && startsIn >= 0 ? 'Začíná za' : 'Zbývá'}</small><br />
               <strong style={{color: urgent ? '#ffae2b' : cfg.color}}>
                 {typeof startsIn === 'number' && startsIn >= 0 ? `${startsIn} min` : typeof minutesLeft === 'number' ? `${Math.max(minutesLeft,0)} min` : '—'}

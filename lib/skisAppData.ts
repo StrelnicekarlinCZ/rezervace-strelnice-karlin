@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { dbEnabled, prisma } from './prisma';
 import type { AppData } from '../types/skis';
 
@@ -24,10 +25,11 @@ export async function readAppData(): Promise<AppData | null> {
 
 export async function writeAppData(value: AppData) {
   if (!dbEnabled()) return null;
+  const jsonValue = value as unknown as Prisma.InputJsonValue;
   return prisma.appSetting.upsert({
     where: { key: APP_DATA_KEY },
-    create: { key: APP_DATA_KEY, value },
-    update: { value },
+    create: { key: APP_DATA_KEY, value: jsonValue },
+    update: { value: jsonValue },
   });
 }
 

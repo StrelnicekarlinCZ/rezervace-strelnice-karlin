@@ -8,6 +8,7 @@ import ReservationTable from '../../components/ReservationTable';
 import AdminDashboard from '../../components/AdminDashboard';
 import ClientsModule from '../../components/ClientsModule';
 import OperationsDashboard from '../../components/OperationsDashboard';
+import QrCheckIn from '../../components/QrCheckIn';
 
 type SubService = { id: string; name: string; duration: number; price: number; capacity: number; description: string; image?: string; detailImage?: string };
 type Category = { id: string; name: string; description: string; image?: string; icon: 'target' | 'user' | 'shield' | 'users'; services: SubService[] };
@@ -104,7 +105,7 @@ function formatRemainingLock(ms:number){
 }
 
 export default function AdminPage(){
-  const [activeAdminModule,setActiveAdminModule]=useState<'reservations'|'clients'>('reservations'); const [reservations,setReservations]=useState<Reservation[]>([]); const [clients,setClients]=useState<Client[]>([]); const [selectedReservation,setSelectedReservation]=useState<Reservation|null>(null); const [selectedClient,setSelectedClient]=useState<Client|null>(null); const [reservationSearch,setReservationSearch]=useState(''); const [filterDate,setFilterDate]=useState(new Date().toISOString().slice(0,10)); const [reservationFilter,setReservationFilter]=useState<'all'|'confirmed'|'checked_in'|'no_show'|'cancelled'>('all'); const [weekOffset,setWeekOffset]=useState(0); const [blocked,setBlocked]=useState<any[]>(['*|12:30']); const [newBlock,setNewBlock]=useState(''); const [blockDate,setBlockDate]=useState(new Date().toISOString().slice(0,10)); const [blockEnd,setBlockEnd]=useState(''); const [blockScope,setBlockScope]=useState<string[]>(['all']); const [categories,setCategories]=useState<Category[]>(defaultCategories); const [settings,setSettings]=useState<SettingsT>(defaultSettings); const [saved,setSaved]=useState(''); const [loginPassword,setLoginPassword]=useState(''); const [authed,setAuthed]=useState(false); const [loginError,setLoginError]=useState(''); const [imageNote,setImageNote]=useState(''); const backupFileRef=useRef<HTMLInputElement|null>(null); const [lockUntil,setLockUntil]=useState(0); const [lastActivity,setLastActivity]=useState(Date.now());
+  const [activeAdminModule,setActiveAdminModule]=useState<'reservations'|'clients'|'qr'>('reservations'); const [reservations,setReservations]=useState<Reservation[]>([]); const [clients,setClients]=useState<Client[]>([]); const [selectedReservation,setSelectedReservation]=useState<Reservation|null>(null); const [selectedClient,setSelectedClient]=useState<Client|null>(null); const [reservationSearch,setReservationSearch]=useState(''); const [filterDate,setFilterDate]=useState(new Date().toISOString().slice(0,10)); const [reservationFilter,setReservationFilter]=useState<'all'|'confirmed'|'checked_in'|'no_show'|'cancelled'>('all'); const [weekOffset,setWeekOffset]=useState(0); const [blocked,setBlocked]=useState<any[]>(['*|12:30']); const [newBlock,setNewBlock]=useState(''); const [blockDate,setBlockDate]=useState(new Date().toISOString().slice(0,10)); const [blockEnd,setBlockEnd]=useState(''); const [blockScope,setBlockScope]=useState<string[]>(['all']); const [categories,setCategories]=useState<Category[]>(defaultCategories); const [settings,setSettings]=useState<SettingsT>(defaultSettings); const [saved,setSaved]=useState(''); const [loginPassword,setLoginPassword]=useState(''); const [authed,setAuthed]=useState(false); const [loginError,setLoginError]=useState(''); const [imageNote,setImageNote]=useState(''); const backupFileRef=useRef<HTMLInputElement|null>(null); const [lockUntil,setLockUntil]=useState(0); const [lastActivity,setLastActivity]=useState(Date.now());
   useEffect(()=>{try{setReservations(JSON.parse(localStorage.getItem('cp_reservations')||'[]'))}catch{} try{setClients(JSON.parse(localStorage.getItem('cp_clients')||'[]'))}catch{} try{setBlocked(JSON.parse(localStorage.getItem('cp_blocked')||'["*|12:30"]'))}catch{} try{const c=JSON.parse(localStorage.getItem('cp_categories')||'null'); if(Array.isArray(c)&&c.length)setCategories(c); else { const old=JSON.parse(localStorage.getItem('cp_services')||'null'); if(Array.isArray(old)&&old.length)setCategories([{id:'sluzby',name:'Služby střelnice',description:'Převedeno ze starší verze.',icon:'target',image:'',services:old.map((s:any)=>({id:s.id,name:s.name,duration:s.duration,price:s.price,capacity:s.capacity,description:s.description||''}))}]); }}catch{} try{setSettings({...defaultSettings,...JSON.parse(localStorage.getItem('cp_settings')||'{}')})}catch{} fetch('/api/app-data').then(r=>r.json()).then(j=>{const d=j?.data; if(!d) return; if(Array.isArray(d.reservations)) setReservations(d.reservations); if(Array.isArray(d.clients)) setClients(d.clients); if(Array.isArray(d.blocked)) setBlocked(d.blocked); if(Array.isArray(d.categories)&&d.categories.length) setCategories(d.categories); if(d.settings) setSettings((cur:any)=>({...cur,...d.settings}));}).catch(()=>{}); fetch('/api/reservations').then(r=>r.json()).then(j=>{if(Array.isArray(j?.reservations)) setReservations(j.reservations);}).catch(()=>{}); setAuthed(sessionStorage.getItem('cp_admin_auth')==='1'); setLockUntil(getAdminLockUntil()); const markActivity=()=>setLastActivity(Date.now()); window.addEventListener('mousemove',markActivity); window.addEventListener('keydown',markActivity); window.addEventListener('click',markActivity); window.addEventListener('touchstart',markActivity); return()=>{window.removeEventListener('mousemove',markActivity); window.removeEventListener('keydown',markActivity); window.removeEventListener('click',markActivity); window.removeEventListener('touchstart',markActivity);}},[]);
   useEffect(()=>{localStorage.setItem('cp_reservations',JSON.stringify(reservations))},[reservations]); useEffect(()=>{localStorage.setItem('cp_clients',JSON.stringify(clients))},[clients]); useEffect(()=>{localStorage.setItem('cp_blocked',JSON.stringify(blocked))},[blocked]); useEffect(()=>{if(!authed)return; const interval=setInterval(()=>{if(Date.now()-lastActivity>ADMIN_IDLE_LIMIT_MS){sessionStorage.removeItem('cp_admin_auth'); setAuthed(false); setLoginPassword(''); setLoginError('Byl jste automaticky odhlášen po nečinnosti.');}},30000); return()=>clearInterval(interval)},[authed,lastActivity]); useEffect(()=>{const interval=setInterval(()=>setLockUntil(getAdminLockUntil()),1000); return()=>clearInterval(interval)},[]);
   const dayReservations=useMemo(()=>reservations.filter(r=>r.date===filterDate),[reservations,filterDate]); const visibleDayReservations=useMemo(()=>{
@@ -482,6 +483,7 @@ if(!authed)return <main className="admin-shell">
   <div className="admin-card" style={{marginTop:16,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
     <button type="button" className={`small-btn ${activeAdminModule==='reservations'?'active':''}`} onClick={()=>setActiveAdminModule('reservations')}>Dashboard / Rezervace</button>
     <button type="button" className={`small-btn ${activeAdminModule==='clients'?'active':''}`} onClick={()=>setActiveAdminModule('clients')}>👥 Klienti ({clients.length})</button>
+    <button type="button" className={`small-btn ${activeAdminModule==='qr'?'active':''}`} onClick={()=>setActiveAdminModule('qr')}>📷 QR Check-In</button>
   </div>
   {activeAdminModule==='clients' ? (
     <ClientsModule
@@ -489,6 +491,14 @@ if(!authed)return <main className="admin-shell">
       reservations={reservations}
       categories={categories}
       onOpenClient={openClientFromList}
+    />
+  ) : activeAdminModule==='qr' ? (
+    <QrCheckIn
+      reservations={reservations}
+      clients={clients}
+      categories={categories}
+      onOpenClient={openClientCard}
+      onCheckIn={checkInReservation}
     />
   ) : (<>
   <OperationsDashboard

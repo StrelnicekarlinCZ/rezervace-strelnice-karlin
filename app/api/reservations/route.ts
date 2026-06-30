@@ -6,6 +6,18 @@ export const dynamic = 'force-dynamic';
 
 const APP_DATA_KEY = 'appData';
 
+type LaneBlock = {
+  id?: string;
+  lane?: number;
+  date?: string;
+  start?: string;
+  end?: string;
+  reason?: string;
+  manualName?: string;
+  offline?: boolean;
+  active?: boolean;
+};
+
 async function readAppData(): Promise<any> {
   if (!dbEnabled()) return null;
   const row = await prisma.appSetting.findUnique({ where: { key: APP_DATA_KEY } });
@@ -83,6 +95,15 @@ function upsertClientFromReservation(clients: any[], reservation: any) {
   ];
 }
 
+function activeLaneBlockConflict(laneBlocks: LaneBlock[], reservation: any) {
+  return laneBlocks.find((b: LaneBlock) => {
+    if (b?.active === false) return false;
+    if (!b?.date || b.date !== reservation?.date) return false;
+    if (!b?.start || !b?.end) return false;
+    return overlaps(b.start, b.end, reservation?.time, reservation?.endTime);
+  }) || null;
+}
+
 export async function GET() {
   try {
     const data = await readAppData();
@@ -111,16 +132,18 @@ export async function POST(request: Request) {
     const reservation = await request.json();
 
     const data = (await readAppData()) ?? {
-      version: '1.28',
+      version: '1.29',
       settings: {},
       categories: [],
       reservations: [],
       clients: [],
       blocked: [],
+      laneBlocks: [],
     };
 
     const reservations = Array.isArray(data.reservations) ? data.reservations : [];
     const clients = Array.isArray(data.clients) ? data.clients : [];
+    const laneBlocks = Array.isArray(data.laneBlocks) ? data.laneBlocks : [];
     const settings = data?.settings || {};
 
     const maxActiveReservations = Number(settings?.maxActiveReservations || 0);
@@ -159,6 +182,20 @@ export async function POST(request: Request) {
       }
     }
 
+    const laneConflict = activeLaneBlockConflict(laneBlocks, reservation);
+
+    if (laneConflict) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: laneConflict?.offline
+            ? `Střelecký stav ${laneConflict.lane || ''} je v tomto čase mimo provoz.`
+            : `Střelecký stav ${laneConflict.lane || ''} je v tomto čase ručně obsazený.`,
+        },
+        { status: 409 }
+      );
+    }
+
     const conflict = reservations.some((r: any) =>
       r?.status !== 'cancelled' &&
       r?.date === reservation?.date &&
@@ -182,10 +219,11 @@ export async function POST(request: Request) {
 
     const next = {
       ...data,
-      version: '1.28',
+      version: '1.29',
       updatedAt: new Date().toISOString(),
       reservations: nextReservations,
       clients: nextClients,
+      laneBlocks,
     };
 
     await writeAppData(next);
@@ -223,12 +261,13 @@ export async function DELETE(request: Request) {
     }
 
     const data = (await readAppData()) ?? {
-      version: '1.28',
+      version: '1.29',
       settings: {},
       categories: [],
       reservations: [],
       clients: [],
       blocked: [],
+      laneBlocks: [],
     };
 
     const reservations = Array.isArray(data.reservations) ? data.reservations : [];
@@ -236,7 +275,7 @@ export async function DELETE(request: Request) {
 
     const next = {
       ...data,
-      version: '1.28',
+      version: '1.29',
       updatedAt: new Date().toISOString(),
       reservations: nextReservations,
     };

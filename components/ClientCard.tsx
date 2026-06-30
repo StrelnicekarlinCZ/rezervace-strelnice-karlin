@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { X, User, CalendarDays, History, Save, Tag, BarChart3, ClipboardList, FileDown } from 'lucide-react';
+import { X, User, CalendarDays, History, Save, Tag, BarChart3, ClipboardList, FileDown, Plus } from 'lucide-react';
 
 type ReservationStatus = 'confirmed' | 'cancelled' | 'no_show' | 'checked_in';
 
@@ -63,6 +63,7 @@ type Props = {
   categories: Category[];
   onClose: () => void;
   onSaveClient: (client: Client) => void;
+  onCreateReservation?: (reservation: Reservation) => Promise<void> | void;
 };
 
 function normEmail(value: unknown) {
@@ -117,6 +118,18 @@ function csvCell(v: unknown) {
   return `"${String(v ?? '').replaceAll('"', '""')}"`;
 }
 
+function addMinutes(time: string, minutes: number) {
+  const [h, m] = String(time || '00:00').split(':').map(Number);
+  const total = (h || 0) * 60 + (m || 0) + (minutes || 0);
+  const hh = String(Math.floor(total / 60) % 24).padStart(2, '0');
+  const mm = String(total % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function reservationId() {
+  return `SK-${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
 export default function ClientCard({
   reservation,
   client,
@@ -124,6 +137,7 @@ export default function ClientCard({
   categories,
   onClose,
   onSaveClient,
+  onCreateReservation,
 }: Props) {
   const now = new Date().toISOString();
 
@@ -145,6 +159,18 @@ export default function ClientCard({
     note: initialClient.note || '',
     vip: !!initialClient.vip,
     banned: !!initialClient.banned,
+  });
+
+  const defaultCategory = categories.find(c => c.id === reservation.categoryId) || categories[0];
+  const defaultService = defaultCategory?.services.find(s => s.id === reservation.serviceId) || defaultCategory?.services[0];
+
+  const [showNewReservation, setShowNewReservation] = useState(false);
+  const [newReservation, setNewReservation] = useState({
+    categoryId: defaultCategory?.id || '',
+    serviceId: defaultService?.id || '',
+    date: new Date().toISOString().slice(0, 10),
+    time: '10:00',
+    note: '',
   });
 
   const clientReservations = useMemo(() => {
@@ -211,6 +237,53 @@ export default function ClientCard({
     if (note.includes('faktur')) result.push('Platba fakturou');
     return result.length ? result : ['Bez štítků'];
   }, [draft.vip, draft.banned, draft.note]);
+
+  const selectedCategory = categories.find(c => c.id === newReservation.categoryId) || categories[0];
+  const selectedService = selectedCategory?.services.find(s => s.id === newReservation.serviceId) || selectedCategory?.services[0];
+  const computedEndTime = selectedService ? addMinutes(newReservation.time, selectedService.duration) : '';
+
+  async function createReservationForClient() {
+    if (!onCreateReservation) {
+      alert('V této verzi není vytvoření rezervace z karty klienta dostupné.');
+      return;
+    }
+
+    if (!selectedCategory || !selectedService) {
+      alert('Vyberte službu a podslužbu.');
+      return;
+    }
+
+    if (!newReservation.date || !newReservation.time) {
+      alert('Vyberte datum a čas rezervace.');
+      return;
+    }
+
+    const payload: Reservation = {
+      id: reservationId(),
+      categoryId: selectedCategory.id,
+      categoryName: selectedCategory.name,
+      serviceId: selectedService.id,
+      serviceName: selectedService.name,
+      duration: selectedService.duration,
+      date: newReservation.date,
+      time: newReservation.time,
+      endTime: computedEndTime,
+      name: draft.name.trim(),
+      phone: normPhone(draft.phone),
+      email: normEmail(draft.email),
+      note: newReservation.note.trim(),
+      createdAt: new Date().toISOString(),
+      status: 'confirmed',
+    };
+
+    try {
+      await onCreateReservation(payload);
+      setShowNewReservation(false);
+      setNewReservation({ ...newReservation, note: '' });
+    } catch (error: any) {
+      alert(error?.message || 'Rezervaci se nepodařilo vytvořit.');
+    }
+  }
 
   function save() {
     onSaveClient({
@@ -377,6 +450,74 @@ export default function ClientCard({
 
           <section className="skis-client-card">
             <h3 className="skis-section-title">Akce</h3>
+            <button type="button" className="skis-secondary-btn" onClick={() => setShowNewReservation(v => !v)}>
+              <Plus size={16} /> Nová rezervace
+            </button>
+
+            {showNewReservation && (
+              <div className="skis-new-reservation">
+                <div className="skis-fields-2">
+                  <Field label="Datum">
+                    <input
+                      type="date"
+                      value={newReservation.date}
+                      onChange={e => setNewReservation({ ...newReservation, date: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Čas od">
+                    <input
+                      type="time"
+                      value={newReservation.time}
+                      onChange={e => setNewReservation({ ...newReservation, time: e.target.value })}
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Hlavní služba">
+                  <select
+                    value={newReservation.categoryId}
+                    onChange={e => {
+                      const nextCategory = categories.find(c => c.id === e.target.value);
+                      setNewReservation({
+                        ...newReservation,
+                        categoryId: e.target.value,
+                        serviceId: nextCategory?.services?.[0]?.id || '',
+                      });
+                    }}
+                  >
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </Field>
+
+                <Field label="Podslužba">
+                  <select
+                    value={newReservation.serviceId}
+                    onChange={e => setNewReservation({ ...newReservation, serviceId: e.target.value })}
+                  >
+                    {(selectedCategory?.services || []).map(s => (
+                      <option key={s.id} value={s.id}>{s.name} · {s.duration} min · {money(s.price)}</option>
+                    ))}
+                  </select>
+                </Field>
+
+                <div className="skis-reservation-preview">
+                  Nová rezervace: <strong>{draft.name || 'Klient'}</strong> · {newReservation.date || 'datum'} · {newReservation.time || 'čas'}–{computedEndTime || '—'}
+                </div>
+
+                <Field label="Poznámka k rezervaci">
+                  <textarea
+                    value={newReservation.note}
+                    onChange={e => setNewReservation({ ...newReservation, note: e.target.value })}
+                    placeholder="Interní poznámka k nové rezervaci..."
+                  />
+                </Field>
+
+                <button type="button" className="skis-save-btn" onClick={createReservationForClient}>
+                  <Plus size={17} /> Vytvořit rezervaci
+                </button>
+              </div>
+            )}
+
             <button type="button" className="skis-save-btn" onClick={save}>
               <Save size={17} /> Uložit změny
             </button>
@@ -467,6 +608,12 @@ export default function ClientCard({
         .skis-fields-4 {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr .8fr;
+          gap: 12px;
+        }
+
+        .skis-fields-2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
           gap: 12px;
         }
 
@@ -621,9 +768,29 @@ export default function ClientCard({
           color: #fff;
         }
 
+        .skis-new-reservation {
+          margin: 12px 0;
+          padding: 13px;
+          border: 1px solid rgba(156,255,56,.18);
+          border-radius: 12px;
+          background: rgba(156,255,56,.055);
+          display: grid;
+          gap: 12px;
+        }
+
+        .skis-reservation-preview {
+          border: 1px solid rgba(255,255,255,.1);
+          border-radius: 10px;
+          background: rgba(0,0,0,.2);
+          padding: 10px 12px;
+          color: rgba(255,255,255,.82);
+          font-size: 13px;
+        }
+
         @media (max-width: 980px) {
           .skis-client-grid,
-          .skis-fields-4 {
+          .skis-fields-4,
+          .skis-fields-2 {
             grid-template-columns: 1fr;
           }
 

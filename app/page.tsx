@@ -315,7 +315,7 @@ export default function HomePage(){
     }
 
     syncAppData();
-    try{const p=JSON.parse(localStorage.getItem('cp_user_profile')||'null'); if(p){setProfile({...{name:'',phone:'',email':''},...p}); setForm(f=>({...f,...p}))}}catch{}
+    try{const savedProfile=JSON.parse(localStorage.getItem('cp_user_profile')||'null'); if(savedProfile){setProfile({name:'',phone:'',email:'',...savedProfile}); setForm(f=>({...f,...savedProfile}))}}catch{}
     if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}
   },[]);
   useEffect(()=>{localStorage.setItem('cp_reservations',JSON.stringify(reservations))},[reservations]);

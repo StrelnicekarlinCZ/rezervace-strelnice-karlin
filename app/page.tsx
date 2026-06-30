@@ -258,28 +258,66 @@ export default function HomePage(){
   const [categories,setCategories]=useState<Category[]>(defaultCategories); const [settings,setSettings]=useState<Settings>(defaultSettings); const [reservations,setReservations]=useState<Reservation[]>([]); const [blocked,setBlocked]=useState<any[]>(['*|12:30']);
   const T=i18n[lang];
   const [step,setStep]=useState(1); const [catId,setCatId]=useState(defaultCategories[0].id); const [serviceId,setServiceId]=useState(defaultCategories[0].services[0].id); const [date,setDate]=useState(datePlus(0)); const [time,setTime]=useState(''); const [profile,setProfile]=useState({name:'',phone:'',email:''}); const [profileSaved,setProfileSaved]=useState(''); const [form,setForm]=useState({name:'',phone:'',email:'',note:''}); const [last,setLast]=useState<Reservation|null>(null); const [detail,setDetail]=useState<Reservation|null>(null); const [bookingError,setBookingError]=useState('');
-  useEffect(()=>{try{const c=JSON.parse(localStorage.getItem('cp_categories')||'null'); if(Array.isArray(c)&&c.length)setCategories(c);}catch{} try{setReservations(JSON.parse(localStorage.getItem('cp_reservations')||'[]'))}catch{} try{setBlocked(JSON.parse(localStorage.getItem('cp_blocked')||'["*|12:30"]'))}catch{} try{
-    const savedSettings = JSON.parse(localStorage.getItem('cp_settings')||'{}');
-    const previousVersion = localStorage.getItem('cp_app_version');
-    const migratedSettings = {...defaultSettings,...savedSettings};
-    if(!Array.isArray(migratedSettings.infoBoxes) || migratedSettings.infoBoxes.length < 3) migratedSettings.infoBoxes = defaultSettings.infoBoxes;
-    migratedSettings.infoBoxes = (migratedSettings.infoBoxes || defaultSettings.infoBoxes).slice(0,3).map((box:any)=>({ ...box, title: fixMixedCzechAdminText(box.title||''), subtitle: fixMixedCzechAdminText(box.subtitle||''), detail: fixMixedCzechAdminText(box.detail||'') }));
-    const oldBrand = String(savedSettings.brandName||'').toLowerCase();
-    const oldTitle = String(savedSettings.appTitle||'').toLowerCase();
-    // V1.25c: vynucená migrace starého veřejného brandingu a staré cache.
-    if(previousVersion !== '1.25g' || !savedSettings.brandName || oldBrand.includes('combat power') || oldBrand.includes('rezervace střelnice') || oldBrand.includes('range karl') || oldBrand.includes('booking range')) migratedSettings.brandName = 'STŘELNICE KARLÍN';
-    if(previousVersion !== '1.25g' || !savedSettings.appTitle || oldTitle === 'rezervace střelnice' || oldTitle.includes('booking range') || oldTitle.includes('range booking')) migratedSettings.appTitle = 'Rezervace střelnice';
-    if(previousVersion !== '1.25g') {
-      migratedSettings.heroTitle1 = savedSettings.heroTitle1 || defaultSettings.heroTitle1;
-      migratedSettings.heroTitle2 = savedSettings.heroTitle2 || defaultSettings.heroTitle2;
-      migratedSettings.qrInfo = savedSettings.qrInfo || defaultSettings.qrInfo;
+  useEffect(()=>{
+    // SKIS v3.0.1: veřejná část má jako hlavní zdroj pravdy serverovou databázi /api/app-data.
+    // LocalStorage slouží jen jako rychlý fallback při prvním vykreslení nebo výpadku API.
+    try{const c=JSON.parse(localStorage.getItem('cp_categories')||'null'); if(Array.isArray(c)&&c.length)setCategories(c);}catch{}
+    try{setReservations(JSON.parse(localStorage.getItem('cp_reservations')||'[]'))}catch{}
+    try{setBlocked(JSON.parse(localStorage.getItem('cp_blocked')||'["*|12:30"]'))}catch{}
+    try{
+      const savedSettings = JSON.parse(localStorage.getItem('cp_settings')||'{}');
+      const previousVersion = localStorage.getItem('cp_app_version');
+      const migratedSettings = {...defaultSettings,...savedSettings};
+      if(!Array.isArray(migratedSettings.infoBoxes) || migratedSettings.infoBoxes.length < 3) migratedSettings.infoBoxes = defaultSettings.infoBoxes;
+      migratedSettings.infoBoxes = (migratedSettings.infoBoxes || defaultSettings.infoBoxes).slice(0,3).map((box:any)=>({ ...box, title: fixMixedCzechAdminText(box.title||''), subtitle: fixMixedCzechAdminText(box.subtitle||''), detail: fixMixedCzechAdminText(box.detail||'') }));
+      const oldBrand = String(savedSettings.brandName||'').toLowerCase();
+      const oldTitle = String(savedSettings.appTitle||'').toLowerCase();
+      if(previousVersion !== '1.25g' || !savedSettings.brandName || oldBrand.includes('combat power') || oldBrand.includes('rezervace střelnice') || oldBrand.includes('range karl') || oldBrand.includes('booking range')) migratedSettings.brandName = 'STŘELNICE KARLÍN';
+      if(previousVersion !== '1.25g' || !savedSettings.appTitle || oldTitle === 'rezervace střelnice' || oldTitle.includes('booking range') || oldTitle.includes('range booking')) migratedSettings.appTitle = 'Rezervace střelnice';
+      if(previousVersion !== '1.25g') {
+        migratedSettings.heroTitle1 = savedSettings.heroTitle1 || defaultSettings.heroTitle1;
+        migratedSettings.heroTitle2 = savedSettings.heroTitle2 || defaultSettings.heroTitle2;
+        migratedSettings.qrInfo = savedSettings.qrInfo || defaultSettings.qrInfo;
+      }
+      setSettings(migratedSettings);
+      localStorage.setItem('cp_settings', JSON.stringify(migratedSettings));
+      localStorage.setItem('cp_app_version','3.0.1');
+      if(previousVersion !== '1.25g'){ localStorage.setItem('cp_lang','CZ'); setLang('CZ'); }
+    }catch{}
+
+    async function syncAppData(){
+      try{
+        const response = await fetch(`/api/app-data?ts=${Date.now()}`, { cache: 'no-store' });
+        const json = await response.json();
+        const data = json?.data;
+        if(!data) return;
+
+        if(Array.isArray(data.categories) && data.categories.length){
+          setCategories(data.categories);
+          localStorage.setItem('cp_categories', JSON.stringify(data.categories));
+        }
+        if(Array.isArray(data.reservations)){
+          setReservations(data.reservations);
+          localStorage.setItem('cp_reservations', JSON.stringify(data.reservations));
+        }
+        if(Array.isArray(data.blocked)){
+          setBlocked(data.blocked);
+          localStorage.setItem('cp_blocked', JSON.stringify(data.blocked));
+        }
+        if(data.settings){
+          setSettings((cur:any)=>{
+            const next={...cur,...data.settings};
+            localStorage.setItem('cp_settings', JSON.stringify(next));
+            return next;
+          });
+        }
+      }catch{}
     }
-    setSettings(migratedSettings);
-    localStorage.setItem('cp_settings', JSON.stringify(migratedSettings));
-    localStorage.setItem('cp_app_version','1.27');
-    if(previousVersion !== '1.25g'){ localStorage.setItem('cp_lang','CZ'); setLang('CZ'); }
-    fetch('/api/app-data').then(r=>r.json()).then(j=>{ const d=j?.data; if(!d) return; if(Array.isArray(d.categories)&&d.categories.length) setCategories(d.categories); if(Array.isArray(d.reservations)) setReservations(d.reservations); if(Array.isArray(d.blocked)) setBlocked(d.blocked); if(d.settings) setSettings((cur:any)=>({...cur,...d.settings})); }).catch(()=>{});
-  }catch{} try{const p=JSON.parse(localStorage.getItem('cp_user_profile')||'null'); if(p){setProfile({...{name:'',phone:'',email:''},...p}); setForm(f=>({...f,...p}))}}catch{} if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}},[]);
+
+    syncAppData();
+    try{const p=JSON.parse(localStorage.getItem('cp_user_profile')||'null'); if(p){setProfile({...{name:'',phone:'',email':''},...p}); setForm(f=>({...f,...p}))}}catch{}
+    if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}
+  },[]);
   useEffect(()=>{localStorage.setItem('cp_reservations',JSON.stringify(reservations))},[reservations]);
   useEffect(() => {
   async function syncReservations() {
@@ -315,13 +353,32 @@ export default function HomePage(){
   function displayCategory(c?:Category){ if(!c)return ''; return trName(c.id,c.name,lang)}
   function displayCategoryDesc(c?:Category){ if(!c)return ''; return trDesc(c.id,c.description,lang)}
   function displayService(s?:SubService){ if(!s)return ''; return trName(s.id,s.name,lang)}
-  async function persistReservationToDb(r:Reservation, nextReservations:Reservation[]){
-    try{
-      await fetch('/api/reservations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
-      await fetch('/api/app-data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({settings,categories,reservations:nextReservations,blocked})});
-    }catch(e){ console.warn('DB_SYNC_SKIPPED', e); }
+  async function persistReservationToDb(r:Reservation){
+    const response = await fetch('/api/reservations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+    const data = await response.json().catch(()=>({}));
+    if(!response.ok || !data?.ok){
+      throw new Error(data?.message || 'Rezervaci se nepodařilo uložit.');
+    }
+    return data;
   }
-  function submit(){if(!formOk||!sub||!category){setBookingError(limitErr||tx('checkData',lang)); return;} const r:Reservation={id:`SK-${Date.now().toString().slice(-6)}`,categoryId:category.id,categoryName:category.name,serviceId:sub.id,serviceName:sub.name,duration:sub.duration,date,time,endTime,name:form.name.trim(),phone:form.phone,email:form.email.trim(),note:form.note,createdAt:new Date().toISOString(),status:'confirmed'}; const nextReservations=[r,...reservations]; setReservations(nextReservations); persistReservationToDb(r,nextReservations); setLast(r); setStep(5); const origin=typeof window!=='undefined'?window.location.origin:''; sendReservationEmail(r,settings,`${origin}/check?id=${encodeURIComponent(r.id)}`); scrollTo(0,0)}
+  async function submit(){
+    if(!formOk||!sub||!category){setBookingError(limitErr||tx('checkData',lang)); return;}
+    const r:Reservation={id:`SK-${Date.now().toString().slice(-6)}`,categoryId:category.id,categoryName:category.name,serviceId:sub.id,serviceName:sub.name,duration:sub.duration,date,time,endTime,name:form.name.trim(),phone:form.phone,email:form.email.trim(),note:form.note,createdAt:new Date().toISOString(),status:'confirmed'};
+    setBookingError('');
+    try{
+      const data = await persistReservationToDb(r);
+      const nextReservations = Array.isArray(data?.reservations) ? data.reservations : [r,...reservations.filter(x=>x.id!==r.id)];
+      setReservations(nextReservations);
+      localStorage.setItem('cp_reservations', JSON.stringify(nextReservations));
+      setLast(r);
+      setStep(5);
+      const origin=typeof window!=='undefined'?window.location.origin:'';
+      sendReservationEmail(r,settings,`${origin}/check?id=${encodeURIComponent(r.id)}`);
+      scrollTo(0,0);
+    }catch(e:any){
+      setBookingError(e?.message || 'Rezervaci se nepodařilo uložit.');
+    }
+  }
   return <main className="app-shell"><div className="ambient"/><section className="phone-page"><header className="topbar"><div className="logo-admin-trigger"><KarlinMark/></div><div className="brand-block"><div><p className="brand-kicker">{autoTranslateCZ(settings.brandName||'Combat Power',lang)}</p><h1 className="brand-title">{autoTranslateCZ(settings.appTitle||T.brand,lang)}</h1>{settings.address&&<a className="top-address" href={mapsHref(settings.address)} target="_blank" rel="noreferrer"><MapPin size={12}/>{autoTranslateCZ(settings.address,lang)}</a>}</div></div><button className="ghost-icon lang-trigger" onClick={()=>setLangOpen(true)}><span>{lang==='CZ'?'🇨🇿':lang==='EN'?'🇬🇧':lang==='DE'?'🇩🇪':lang==='ES'?'🇪🇸':'🇫🇷'}</span></button></header>
   {tab==='home'&&<><div className="hero-card image-hero" style={{backgroundImage:`linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.62)),url(${settings.heroImage||'/range-bg.png'})`}}><div className="hero-overlay"/><div className="hero-content"><span className="badge"><ShieldCheck size={15}/> {autoTranslateCZ(settings.heroBadge||T.online,lang)}</span><h2 className="hero-title">{autoTranslateCZ(settings.heroTitle1||T.hero1,lang)} <span>{autoTranslateCZ(settings.heroTitle2||T.hero2,lang)}</span></h2><p className="hero-text">{lang === 'CZ' ? (settings.heroText || T.heroText) : T.heroText}</p><button className="primary-btn" onClick={start}>{T.book} <ChevronRight size={18}/></button></div></div><div className="feature-row">{(settings.infoBoxes||defaultSettings.infoBoxes||[]).slice(0,3).map((box,i)=><button key={i} onClick={()=>setInfo(`box-${i}`)}>{infoIcon(box.icon)}<strong>{autoTranslateCZ(box.title,lang)}</strong><span>{autoTranslateCZ(box.subtitle,lang)}</span></button>)}</div><div className="section-title"><div><h2>{T.mainServices}</h2><p>{T.mainServicesDesc}</p></div></div><div className="card-list">{categories.map(c=><button key={c.id} className="service-card" onClick={()=>{setCatId(c.id);setServiceId(c.services[0]?.id||'');setTab('reservation');setStep(2);scrollTo(0,0)}} style={c.image?{backgroundImage:`linear-gradient(90deg,rgba(0,0,0,.66),rgba(0,0,0,.32)),url(${c.image})`,backgroundSize:'cover',backgroundPosition:'center'}:{}}><span className="service-main"><span className="service-icon">{icon(c.icon)}</span><span><p className="service-name">{displayCategory(c)}</p><p className="service-meta">{displayCategoryDesc(c)}</p></span></span><span className="price">{c.services.length}×</span></button>)}</div></>}
   {tab==='reservation'&&<><Flow step={step} setStep={setStep} labels={T}/>{step===1&&<><div className="section-title"><div><h2>{T.step1}</h2><p>{T.step1desc}</p></div></div><div className="card-list">{categories.map(c=><button key={c.id} className={`service-card ${catId===c.id?'active':''}`} onClick={()=>{setCatId(c.id);setServiceId(c.services[0]?.id||'');setStep(2);scrollTo(0,0)}} style={c.image?{backgroundImage:`linear-gradient(90deg,rgba(0,0,0,.7),rgba(0,0,0,.33)),url(${c.image})`,backgroundSize:'cover',backgroundPosition:'center'}:{}}><span className="service-main"><span className="service-icon">{icon(c.icon)}</span><span><p className="service-name">{displayCategory(c)}</p><p className="service-meta">{displayCategoryDesc(c)}</p></span></span><ChevronRight/></button>)}</div></>}{step===2&&<><button className="back-btn" onClick={()=>setStep(1)}><ChevronLeft/> {T.back}</button><div className="section-title"><div><h2>{T.step2}</h2><p>{displayCategory(category)}</p></div></div><div className="card-list">{category?.services.map(s=><button key={s.id} className={`service-card ${serviceId===s.id?'active':''}`} onClick={()=>{setServiceId(s.id);setTime('');setStep(3);scrollTo(0,0)}} style={s.image?{backgroundImage:`linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.28)),url(${s.image})`,backgroundSize:'cover',backgroundPosition:'center'}:{}}><span className="service-main"><span className="service-icon">{icon(category.icon)}</span><span><p className="service-name">{displayService(s)}</p><p className="service-meta">{s.duration} min · {T.max} {s.capacity} {T.persons}</p><p className="service-meta">{trDesc(s.id,s.description,lang)}</p></span></span><span className="price">{s.price.toLocaleString('cs-CZ')} Kč</span></button>)}</div></>}{step===3&&sub&&<><button className="back-btn" onClick={()=>setStep(2)}><ChevronLeft/> {T.back}</button><div className="section-title"><div><h2>{T.step3}</h2><p>{displayService(sub)} · {sub.duration} min</p></div></div><div className="dates">{quickDates(settings,lang).map(d=><button key={d.iso} className={`date-btn ${date===d.iso?'active':''} ${d.closed?'disabled':''}`} onClick={()=>{setDate(d.iso);setTime('')}}><span>{d.label}</span><small>{formatDate(d.iso)}</small></button>)}</div><div className="field other-date"><label>{T.otherDate}</label><input type="date" value={date} min={datePlus(0)} max={datePlus(settings.maxBookingDays||30)} onChange={e=>{setDate(e.target.value);setTime('')}}/></div>{dateErr&&<div className="error-box">{dateErr}</div>}<div className="field"><label>{T.chooseTime}</label><button type="button" className={`time-picker-card interactive ${!dateErr?'ready':''}`} disabled={!!dateErr} onClick={()=>!dateErr&&setTimeOpen(true)}><div className="clock-badge"><Clock size={24}/></div><div className="time-picker-copy"><strong>{time?tx('selectedTime',lang)+': '+time+'–'+endTime:T.chooseFreeTime}</strong><small>{time?tx('tapClock',lang):T.timeHint}</small></div><ChevronRight size={20}/></button></div><div className="notice">{autoTranslateCZ(settings.reservationNote,lang)} {tx('phoneLabel',lang)}: {settings.contactPhone}</div><button className="primary-btn" style={{marginTop:16}} disabled={!!dateErr||!time} onClick={()=>setStep(4)}>{T.continue}</button></>}{step===4&&sub&&<><button className="back-btn" onClick={()=>setStep(3)}><ChevronLeft/> {T.back}</button><div className="section-title"><div><h2>{T.step4}</h2><p>{T.step4desc}</p></div></div><div className="summary-card reservation-summary"><strong>{displayCategory(category)}</strong><p>{displayService(sub)}</p><p>{dayName(date,lang)} {formatDate(date)} · {time}–{endTime}</p><p>{sub.duration} min · {sub.price.toLocaleString('cs-CZ')} Kč</p></div><div className="form-grid"><div className="field"><label>{T.name}</label><input placeholder={tx('namePlaceholder',lang)} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>{errors.name&&<small className="field-error">{errors.name}</small>}</div><div className="field"><label>{T.phone}</label><input inputMode="numeric" placeholder={tx('phonePlaceholder',lang)} value={form.phone} onChange={e=>phone(e.target.value)}/>{errors.phone&&<small className="field-error">{errors.phone}</small>}</div><div className="field"><label>{T.email}</label><input type="email" placeholder={tx('emailPlaceholder',lang)} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>{errors.email&&<small className="field-error">{errors.email}</small>}</div><div className="field"><label>{T.note}</label><textarea rows={3} placeholder={tx('notePlaceholder',lang)} value={form.note} onChange={e=>setForm({...form,note:e.target.value})}/></div></div>{limitErr&&<div className="error-box">{limitErr}</div>}{bookingError&&<div className="error-box">{bookingError}</div>}<div className="notice">{tx('rulesNotice',lang).replace('{max}',String(settings.maxActiveReservations||2)).replace('{hours}',String(settings.cancellationHours||12))}</div><button className="primary-btn" style={{marginTop:16}} disabled={!formOk} onClick={submit}>{T.reserve}</button></>}{step===5&&last&&<div className="confirmation"><div className="check"><Check size={42}/></div><h2>{T.confirmed}</h2><p>Potvrzení rezervace bylo automaticky připraveno k odeslání na uvedený e-mail.</p><div className="summary-card"><strong>{trName(last.categoryId,last.categoryName,lang)}</strong><p>{trName(last.serviceId,last.serviceName,lang)}</p><p>{formatDate(last.date)} · {last.time}–{last.endTime}</p><p>{T.number}: {last.id}</p></div><button className="primary-btn" onClick={()=>go('mine')}>{T.showMine}</button></div>}</>}

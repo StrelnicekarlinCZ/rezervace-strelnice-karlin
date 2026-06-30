@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CheckCircle2, Clipboard, Search, ShieldCheck, StopCircle } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Clipboard, RotateCcw, Search, ShieldCheck, StopCircle, Volume2 } from 'lucide-react';
 import QrResultCard from './QrResultCard';
 
 type ReservationStatus = 'confirmed' | 'cancelled' | 'no_show' | 'checked_in';
@@ -184,6 +184,61 @@ function validationFor(reservation: Reservation | null, client: Client | null) {
   };
 }
 
+function beep(type: 'ok' | 'warn' | 'danger', enabled: boolean) {
+  if (!enabled || typeof window === 'undefined') return;
+
+  try {
+    const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const ctx = new AudioContextClass();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    const frequency = type === 'ok' ? 880 : type === 'warn' ? 520 : 220;
+    const duration = type === 'ok' ? 0.12 : type === 'warn' ? 0.18 : 0.28;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    gain.gain.value = 0.055;
+
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+
+    setTimeout(() => {
+      oscillator.stop();
+      ctx.close().catch(() => {});
+    }, duration * 1000);
+  } catch {
+    // Zvuk je pouze pomocný UX prvek. Při chybě ho ignorujeme.
+  }
+}
+
+function validationAccent(level: 'ok' | 'warn' | 'danger') {
+  if (level === 'ok') {
+    return {
+      border: '1px solid rgba(156,255,56,.35)',
+      background: 'linear-gradient(180deg,rgba(156,255,56,.09),rgba(255,255,255,.025))',
+      color: '#9cff38',
+    };
+  }
+
+  if (level === 'warn') {
+    return {
+      border: '1px solid rgba(255,174,43,.36)',
+      background: 'linear-gradient(180deg,rgba(255,174,43,.10),rgba(255,255,255,.025))',
+      color: '#ffae2b',
+    };
+  }
+
+  return {
+    border: '1px solid rgba(255,107,107,.36)',
+    background: 'linear-gradient(180deg,rgba(255,107,107,.10),rgba(255,255,255,.025))',
+    color: '#ff6b6b',
+  };
+}
+
 export default function QrCheckIn({ reservations, clients, categories, onOpenClient, onCheckIn }: Props) {
   const [qrInput, setQrInput] = useState('');
   const [searchedId, setSearchedId] = useState('');
@@ -191,11 +246,16 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraInfo, setCameraInfo] = useState('');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [autoCheckIn, setAutoCheckIn] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastScanRef = useRef('');
   const detectorRef = useRef<any>(null);
+  const lastResultSoundRef = useRef('');
+  const lastAutoCheckInRef = useRef('');
 
   const parsedId = useMemo(() => extractReservationId(qrInput), [qrInput]);
 
@@ -212,6 +272,14 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
   function search() {
     const id = extractReservationId(qrInput);
     setSuccessMessage('');
+
+    if (!id) {
+      setSearchedId('');
+      setCameraInfo('Zadejte nebo načtěte QR kód / ID rezervace.');
+      beep('warn', soundEnabled);
+      return;
+    }
+
     setSearchedId(id);
   }
 
@@ -220,20 +288,31 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
     setSearchedId('');
     setSuccessMessage('');
     setCameraInfo('');
+    lastScanRef.current = '';
+    lastResultSoundRef.current = '';
+    lastAutoCheckInRef.current = '';
   }
 
   function checkIn() {
-    if (!foundReservation || !validation.canCheckIn) return;
+    if (!foundReservation || !validation.canCheckIn) {
+      beep('danger', soundEnabled);
+      return;
+    }
+
     onCheckIn(foundReservation);
     setSuccessMessage(`Klient ${foundReservation.name} byl odbaven.`);
+    setCameraInfo(`Odbaveno: ${foundReservation.name}`);
+    beep('ok', soundEnabled);
   }
 
   async function pasteFromClipboard() {
     try {
       const text = await navigator.clipboard.readText();
+      const id = extractReservationId(text);
       setQrInput(text);
-      setSearchedId(extractReservationId(text));
+      setSearchedId(id);
       setSuccessMessage('');
+      setCameraInfo(id ? `Vloženo ze schránky: ${id}` : 'Schránka neobsahuje rozpoznatelné ID rezervace.');
     } catch {
       alert('Nepodařilo se načíst schránku. Vložte QR text ručně.');
     }
@@ -250,6 +329,7 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
     setSearchedId(id);
     setSuccessMessage('');
     setCameraInfo(`QR načteno: ${id}`);
+    beep('ok', soundEnabled);
   }
 
   function stopCamera() {
@@ -267,7 +347,7 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
     setCameraActive(false);
   }
 
-  async function startCamera() {
+  async function startCamera(mode: 'environment' | 'user' = facingMode) {
     setCameraError('');
     setCameraInfo('');
 
@@ -283,7 +363,7 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
       detectorRef.current = new BarcodeDetectorClass({ formats: ['qr_code'] });
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: 'environment' },
+          facingMode: { ideal: mode },
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -307,6 +387,13 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
     }
   }
 
+  async function switchCamera() {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    stopCamera();
+    setTimeout(() => startCamera(nextMode), 180);
+  }
+
   async function scanFrame() {
     if (!videoRef.current || !detectorRef.current) return;
 
@@ -324,6 +411,33 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
 
     rafRef.current = requestAnimationFrame(scanFrame);
   }
+
+
+  useEffect(() => {
+    if (!searchedId) return;
+
+    const soundKey = `${searchedId}:${foundReservation?.id || 'missing'}:${validation.level}`;
+    if (lastResultSoundRef.current === soundKey) return;
+
+    lastResultSoundRef.current = soundKey;
+    beep(validation.level, soundEnabled);
+  }, [searchedId, foundReservation, validation.level, soundEnabled]);
+
+  useEffect(() => {
+    if (!autoCheckIn || !foundReservation || !validation.canCheckIn) return;
+
+    const key = foundReservation.id;
+    if (lastAutoCheckInRef.current === key) return;
+
+    lastAutoCheckInRef.current = key;
+    setCameraInfo(`Automatické odbavení za 1 sekundu: ${foundReservation.name}`);
+
+    const timer = window.setTimeout(() => {
+      checkIn();
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [autoCheckIn, foundReservation, validation.canCheckIn]);
 
   useEffect(() => {
     return () => stopCamera();
@@ -362,9 +476,30 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
           <div>
             <h3 style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}><Camera size={17} /> Kamera</h3>
             <p style={{ margin: 0, opacity: .75 }}>Zapněte kameru a namiřte QR kód do obrazu. Pokud kamera není podporována, použijte ruční vložení nebo USB čtečku.</p>
+            <small style={{ display: 'block', marginTop: 6, opacity: .72 }}>Režim kamery: {facingMode === 'environment' ? 'zadní / externí' : 'přední'} · Auto odbavení: {autoCheckIn ? 'zapnuto' : 'vypnuto'}</small>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {!cameraActive && <button type="button" className="small-btn" onClick={startCamera}><Camera size={14} /> Zapnout kameru</button>}
+            <button
+              type="button"
+              className="small-btn"
+              onClick={() => setSoundEnabled(v => !v)}
+              style={soundEnabled ? { background: 'rgba(156,255,56,.14)', borderColor: 'rgba(156,255,56,.28)' } : {}}
+            >
+              <Volume2 size={14} /> Zvuk {soundEnabled ? 'ON' : 'OFF'}
+            </button>
+
+            <label className="small-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={autoCheckIn}
+                onChange={e => setAutoCheckIn(e.target.checked)}
+                style={{ width: 14, height: 14 }}
+              />
+              Auto odbavit
+            </label>
+
+            {!cameraActive && <button type="button" className="small-btn" onClick={() => startCamera()}><Camera size={14} /> Zapnout kameru</button>}
+            {cameraActive && <button type="button" className="small-btn" onClick={switchCamera}><RotateCcw size={14} /> Přepnout kameru</button>}
             {cameraActive && <button type="button" className="small-btn danger" onClick={stopCamera}><StopCircle size={14} /> Vypnout kameru</button>}
           </div>
         </div>
@@ -408,7 +543,11 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
       )}
 
       {foundReservation && (
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 14, borderRadius: 14, padding: 12, ...validationAccent(validation.level) }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontWeight: 900, color: validationAccent(validation.level).color }}>
+            {validation.level === 'ok' ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}
+            {validation.title}
+          </div>
           <QrResultCard
             reservation={foundReservation}
             client={foundClient}

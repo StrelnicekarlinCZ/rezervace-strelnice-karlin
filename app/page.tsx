@@ -259,7 +259,7 @@ export default function HomePage(){
   const T=i18n[lang];
   const [step,setStep]=useState(1); const [catId,setCatId]=useState(defaultCategories[0].id); const [serviceId,setServiceId]=useState(defaultCategories[0].services[0].id); const [date,setDate]=useState(datePlus(0)); const [time,setTime]=useState(''); const [profile,setProfile]=useState({name:'',phone:'',email:''}); const [profileSaved,setProfileSaved]=useState(''); const [form,setForm]=useState({name:'',phone:'',email:'',note:''}); const [last,setLast]=useState<Reservation|null>(null); const [detail,setDetail]=useState<Reservation|null>(null); const [bookingError,setBookingError]=useState('');
   useEffect(()=>{
-    // SKIS v3.0.1: veřejná část má jako hlavní zdroj pravdy serverovou databázi /api/app-data.
+    // SKIS v3.0.1: veřejná část má jako hlavní zdroj pravdy veřejné čtecí API /api/public-data.
     // LocalStorage slouží jen jako rychlý fallback při prvním vykreslení nebo výpadku API.
     try{const c=JSON.parse(localStorage.getItem('cp_categories')||'null'); if(Array.isArray(c)&&c.length)setCategories(c);}catch{}
     try{setReservations(JSON.parse(localStorage.getItem('cp_reservations')||'[]'))}catch{}
@@ -287,7 +287,7 @@ export default function HomePage(){
 
     async function syncAppData(){
       try{
-        const response = await fetch(`/api/app-data?ts=${Date.now()}`, { cache: 'no-store' });
+        const response = await fetch(`/api/public-data?ts=${Date.now()}`, { cache: 'no-store' });
         const json = await response.json();
         const data = json?.data;
         if(!data) return;

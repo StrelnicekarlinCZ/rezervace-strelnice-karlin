@@ -7,6 +7,7 @@ import ReservationSearch from '../../components/ReservationSearch';
 import ReservationTable from '../../components/ReservationTable';
 import AdminDashboard from '../../components/AdminDashboard';
 import ClientsModule from '../../components/ClientsModule';
+import OperationsDashboard from '../../components/OperationsDashboard';
 
 type SubService = { id: string; name: string; duration: number; price: number; capacity: number; description: string; image?: string; detailImage?: string };
 type Category = { id: string; name: string; description: string; image?: string; icon: 'target' | 'user' | 'shield' | 'users'; services: SubService[] };
@@ -490,6 +491,16 @@ if(!authed)return <main className="admin-shell">
       onOpenClient={openClientFromList}
     />
   ) : (<>
+  <OperationsDashboard
+    reservations={reservations}
+    clients={clients}
+    categories={categories}
+    onOpenClient={openClientCard}
+    onConfirm={confirmReservation}
+    onCheckIn={checkInReservation}
+    onNoShow={noShowReservation}
+    onCancel={cancelReservation}
+  />
   <AdminDashboard
     dayReservationsCount={dayReservations.length}
     dayCheckedIn={dayCheckedIn}

@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Camera, CheckCircle2, Clipboard, Search, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Camera, CheckCircle2, Clipboard, Search, ShieldCheck, StopCircle } from 'lucide-react';
 import QrResultCard from './QrResultCard';
 
 type ReservationStatus = 'confirmed' | 'cancelled' | 'no_show' | 'checked_in';
@@ -188,6 +188,14 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
   const [qrInput, setQrInput] = useState('');
   const [searchedId, setSearchedId] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [cameraInfo, setCameraInfo] = useState('');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastScanRef = useRef('');
+  const detectorRef = useRef<any>(null);
 
   const parsedId = useMemo(() => extractReservationId(qrInput), [qrInput]);
 
@@ -211,6 +219,7 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
     setQrInput('');
     setSearchedId('');
     setSuccessMessage('');
+    setCameraInfo('');
   }
 
   function checkIn() {
@@ -230,12 +239,102 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
     }
   }
 
+  function handleDetectedText(text: string) {
+    const value = String(text || '').trim();
+    if (!value) return;
+    const id = extractReservationId(value);
+    if (!id) return;
+    if (lastScanRef.current === id) return;
+    lastScanRef.current = id;
+    setQrInput(value);
+    setSearchedId(id);
+    setSuccessMessage('');
+    setCameraInfo(`QR načteno: ${id}`);
+  }
+
+  function stopCamera() {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  }
+
+  async function startCamera() {
+    setCameraError('');
+    setCameraInfo('');
+
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+
+    const BarcodeDetectorClass = (window as any).BarcodeDetector;
+    if (!BarcodeDetectorClass) {
+      setCameraError('Tento prohlížeč nepodporuje vestavěné čtení QR kódů. Použijte Chrome/Edge, USB čtečku nebo ruční vložení ID.');
+      return;
+    }
+
+    try {
+      detectorRef.current = new BarcodeDetectorClass({ formats: ['qr_code'] });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      setCameraActive(true);
+      setCameraInfo('Kamera spuštěna. Namiřte QR kód do rámečku.');
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play();
+      }
+
+      scanFrame();
+    } catch (error: any) {
+      stopCamera();
+      setCameraError(error?.message || 'Kameru se nepodařilo spustit. Zkontrolujte oprávnění prohlížeče.');
+    }
+  }
+
+  async function scanFrame() {
+    if (!videoRef.current || !detectorRef.current) return;
+
+    try {
+      if (videoRef.current.readyState >= 2) {
+        const codes = await detectorRef.current.detect(videoRef.current);
+        if (Array.isArray(codes) && codes.length > 0) {
+          const first = codes[0];
+          handleDetectedText(first?.rawValue || first?.rawData || '');
+        }
+      }
+    } catch {
+      // Tichý fallback: další snímek zkusíme znovu.
+    }
+
+    rafRef.current = requestAnimationFrame(scanFrame);
+  }
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
   return (
     <div className="admin-card" style={{ marginTop: 16 }}>
       <div className="section-title" style={{ marginTop: 0 }}>
         <div>
           <h2><ShieldCheck size={18} /> QR Check-In</h2>
-          <p>Vložte QR odkaz nebo ID rezervace. Kamera bude navazovat v další verzi.</p>
+          <p>Načtěte QR kamerou, vložte QR odkaz nebo zadejte ID rezervace. QR Engine najde rezervaci a připraví odbavení.</p>
         </div>
       </div>
 
@@ -258,9 +357,42 @@ export default function QrCheckIn({ reservations, clients, categories, onOpenCli
         </div>
       </div>
 
-      <div style={{ marginTop: 14, border: '1px dashed rgba(255,255,255,.16)', borderRadius: 14, padding: 14, background: 'rgba(255,255,255,.025)' }}>
-        <h3 style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}><Camera size={17} /> Kamera</h3>
-        <p style={{ margin: 0, opacity: .75 }}>V této verzi je připraven QR Engine pro ruční vložení nebo USB čtečku. Kamera bude přidána jako v2.4.1 bez změny logiky odbavení.</p>
+      <div style={{ marginTop: 14, border: '1px solid rgba(255,255,255,.16)', borderRadius: 14, padding: 14, background: 'rgba(255,255,255,.025)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}><Camera size={17} /> Kamera</h3>
+            <p style={{ margin: 0, opacity: .75 }}>Zapněte kameru a namiřte QR kód do obrazu. Pokud kamera není podporována, použijte ruční vložení nebo USB čtečku.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {!cameraActive && <button type="button" className="small-btn" onClick={startCamera}><Camera size={14} /> Zapnout kameru</button>}
+            {cameraActive && <button type="button" className="small-btn danger" onClick={stopCamera}><StopCircle size={14} /> Vypnout kameru</button>}
+          </div>
+        </div>
+
+        {cameraActive && (
+          <div style={{ marginTop: 12, position: 'relative', overflow: 'hidden', borderRadius: 14, border: '1px solid rgba(156,255,56,.18)', background: '#050705' }}>
+            <video
+              ref={videoRef}
+              muted
+              autoPlay
+              playsInline
+              style={{ width: '100%', maxHeight: 420, objectFit: 'cover', display: 'block' }}
+            />
+            <div style={{ position: 'absolute', inset: '18% 24%', border: '2px solid rgba(156,255,56,.75)', borderRadius: 14, boxShadow: '0 0 0 9999px rgba(0,0,0,.24)', pointerEvents: 'none' }} />
+          </div>
+        )}
+
+        {cameraInfo && (
+          <div style={{ marginTop: 10, color: '#9cff38', fontWeight: 900 }}>
+            {cameraInfo}
+          </div>
+        )}
+
+        {cameraError && (
+          <div style={{ marginTop: 10, color: '#ff6b6b', fontWeight: 900 }}>
+            {cameraError}
+          </div>
+        )}
       </div>
 
       {successMessage && (

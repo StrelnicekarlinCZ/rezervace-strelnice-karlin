@@ -1,4 +1,4 @@
-use client';
+'use client';
 
 import { useMemo, useState } from 'react';
 import { Search, Users, Star, AlertTriangle, Ban, Download, Eye, Database } from 'lucide-react';

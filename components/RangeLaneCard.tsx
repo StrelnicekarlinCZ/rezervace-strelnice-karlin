@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, User, XCircle, Ban, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, User, XCircle, Ban, AlertTriangle, Wrench, Edit3, UserCog } from 'lucide-react';
 
 type ReservationStatus = 'confirmed' | 'cancelled' | 'no_show' | 'checked_in';
 
@@ -37,17 +37,30 @@ type Client = {
 
 type LaneStatus = 'free' | 'occupied' | 'preparing' | 'vip' | 'offline';
 
+type LaneMeta = {
+  offline?: boolean;
+  note?: string;
+  instructor?: string;
+  manualName?: string;
+};
+
 type Props = {
   laneNumber: number;
   status: LaneStatus;
   reservation?: Reservation | null;
   client?: Client | null;
+  laneMeta?: LaneMeta;
   minutesLeft?: number | null;
   startsIn?: number | null;
   onOpenClient?: (reservation: Reservation) => void;
   onCheckIn?: (reservation: Reservation) => void;
   onNoShow?: (reservation: Reservation) => void;
   onCancel?: (reservation: Reservation) => void;
+  onToggleOffline?: (laneNumber: number) => void;
+  onUpdateNote?: (laneNumber: number, note: string) => void;
+  onUpdateInstructor?: (laneNumber: number, instructor: string) => void;
+  onManualOccupy?: (laneNumber: number, name: string) => void;
+  onManualFree?: (laneNumber: number) => void;
 };
 
 function statusConfig(status: LaneStatus) {
@@ -70,15 +83,28 @@ export default function RangeLaneCard({
   status,
   reservation,
   client,
+  laneMeta,
   minutesLeft,
   startsIn,
   onOpenClient,
   onCheckIn,
   onNoShow,
   onCancel,
+  onToggleOffline,
+  onUpdateNote,
+  onUpdateInstructor,
+  onManualOccupy,
+  onManualFree,
 }: Props) {
   const cfg = statusConfig(status);
   const urgent = typeof minutesLeft === 'number' && minutesLeft <= 5 && minutesLeft >= 0;
+  const manualName = laneMeta?.manualName || '';
+
+  function manualOccupy() {
+    const name = prompt(`Koho ručně zapsat na STAV ${laneNumber}?`);
+    if (!name?.trim()) return;
+    onManualOccupy?.(laneNumber, name.trim());
+  }
 
   return (
     <article
@@ -87,7 +113,7 @@ export default function RangeLaneCard({
         background: `linear-gradient(180deg,${cfg.bg},rgba(255,255,255,.025))`,
         borderRadius: 16,
         padding: 16,
-        minHeight: 210,
+        minHeight: 260,
         boxShadow: urgent ? `0 0 0 1px ${cfg.border}, 0 0 26px ${cfg.bg}` : 'inset 0 1px 0 rgba(255,255,255,.04)',
       }}
     >
@@ -101,12 +127,58 @@ export default function RangeLaneCard({
         </div>
       </div>
 
-      {!reservation ? (
+      <div style={{marginTop:12,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        <label style={{display:'grid',gap:5,fontSize:12,fontWeight:900,opacity:.9}}>
+          Instruktor
+          <input
+            value={laneMeta?.instructor || ''}
+            onChange={e=>onUpdateInstructor?.(laneNumber,e.target.value)}
+            placeholder="např. Petr"
+            style={{border:'1px solid rgba(255,255,255,.12)',borderRadius:9,background:'#151818',color:'#fff',padding:'8px 9px'}}
+          />
+        </label>
+        <label style={{display:'grid',gap:5,fontSize:12,fontWeight:900,opacity:.9}}>
+          Poznámka stavu
+          <input
+            value={laneMeta?.note || ''}
+            onChange={e=>onUpdateNote?.(laneNumber,e.target.value)}
+            placeholder="např. servis terče"
+            style={{border:'1px solid rgba(255,255,255,.12)',borderRadius:9,background:'#151818',color:'#fff',padding:'8px 9px'}}
+          />
+        </label>
+      </div>
+
+      {status === 'offline' ? (
+        <div style={{marginTop:18,display:'grid',gap:10}}>
+          <strong style={{fontSize:24,color:'#aaa'}}>MIMO PROVOZ</strong>
+          <p style={{margin:0,opacity:.72}}>Stav je dočasně vypnutý pro provoz.</p>
+          <button type="button" className="small-btn" onClick={()=>onToggleOffline?.(laneNumber)}><Wrench size={14}/> Vrátit do provozu</button>
+        </div>
+      ) : !reservation && !manualName ? (
         <div style={{marginTop:20,display:'grid',gap:10}}>
           <strong style={{fontSize:28,color:'#9cff38'}}>VOLNO</strong>
           <p style={{margin:0,opacity:.72}}>Stav je okamžitě k dispozici.</p>
+          <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+            <button type="button" className="small-btn" onClick={manualOccupy}><Edit3 size={14}/> Ručně obsadit</button>
+            <button type="button" className="small-btn danger" onClick={()=>onToggleOffline?.(laneNumber)}><Wrench size={14}/> Mimo provoz</button>
+          </div>
         </div>
-      ) : (
+      ) : manualName ? (
+        <div style={{marginTop:16,display:'grid',gap:10}}>
+          <div>
+            <strong style={{fontSize:19}}>{manualName}</strong><br />
+            <small style={{opacity:.76}}>Ručně obsazený stav bez rezervace</small>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8,color:'#ffae2b',fontWeight:900}}>
+            <UserCog size={15}/> Ruční režim – neovlivňuje rezervace.
+          </div>
+          <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:2}}>
+            <button type="button" className="small-btn" onClick={manualOccupy}><Edit3 size={14}/> Upravit</button>
+            <button type="button" className="small-btn danger" onClick={()=>onManualFree?.(laneNumber)}><Ban size={14}/> Uvolnit</button>
+            <button type="button" className="small-btn danger" onClick={()=>onToggleOffline?.(laneNumber)}><Wrench size={14}/> Mimo provoz</button>
+          </div>
+        </div>
+      ) : reservation ? (
         <div style={{marginTop:16,display:'grid',gap:10}}>
           <div>
             <strong style={{fontSize:19}}>{reservation.name}</strong>
@@ -140,9 +212,10 @@ export default function RangeLaneCard({
             <button type="button" className="small-btn" style={{background:'var(--green2)',color:'#111'}} onClick={()=>onCheckIn?.(reservation)}><CheckCircle2 size={14}/> Odbavit</button>
             <button type="button" className="small-btn danger" onClick={()=>onNoShow?.(reservation)}><XCircle size={14}/> Nedorazil</button>
             <button type="button" className="small-btn danger" onClick={()=>onCancel?.(reservation)}><Ban size={14}/> Storno</button>
+            <button type="button" className="small-btn danger" onClick={()=>onToggleOffline?.(laneNumber)}><Wrench size={14}/> Mimo provoz</button>
           </div>
         </div>
-      )}
+      ) : null}
     </article>
   );
 }
